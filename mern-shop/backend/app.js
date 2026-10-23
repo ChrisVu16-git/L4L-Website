@@ -22,13 +22,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 
 // production frontend setup
-if (process.env.NODE_ENV === 'production') {
-  const frontendDist = path.join(__dirname, '../frontend/dist');
-  app.use(express.static(frontendDist));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(frontendDist, 'index.html'));
-  });
-}
+
 
 app.use((err, _req, res, _next) => {
   const status = res.statusCode === 200 ? 500 : res.statusCode;
