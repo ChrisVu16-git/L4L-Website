@@ -1,5 +1,7 @@
 import Product from '../models/Product.js';
 
+const isValidProductId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+
 export const getProducts = async (req, res) => {
   const keyword = req.query.keyword
     ? {
@@ -7,21 +9,24 @@ export const getProducts = async (req, res) => {
           { name: { $regex: req.query.keyword, $options: 'i' } },
           { description: { $regex: req.query.keyword, $options: 'i' } },
         ],
-      }
-    : {};
-
+      } : {};
   const category = req.query.category ? { category: req.query.category } : {};
-
   const products = await Product.find({ ...keyword, ...category }).sort({ createdAt: -1 });
   res.json(products);
 };
 
+
 export const getProductById = async (req, res) => {
+   if (!isValidProductId(req.params.id)) {
+    return res.status(400).json({
+      message: 'Invalid product ID',
+    });
+  }
   const product = await Product.findById(req.params.id);
   if (product) {
-    res.json(product);
+    return res.json(product);
   } else {
-    res.status(404).json({ message: 'Product not found' });
+    return res.status(404).json({ message: 'Product not found' });
   }
 };
 
@@ -75,7 +80,14 @@ export const createProduct = async (req, res) => {
   res.status(201).json(product);
 };
 
+
 export const updateProduct = async (req, res) => {
+  if (!isValidProductId(req.params.id)) {
+    return res.status(400).json({
+      message: 'Invalid product ID',
+  });
+  }
+
   const product = await Product.findById(req.params.id);
 
   if (!product) {
@@ -127,6 +139,11 @@ export const updateProduct = async (req, res) => {
 
 
 export const deleteProduct = async (req, res) => {
+  if (!isValidProductId(req.params.id)) {
+    return res.status(400).json({
+      message: 'Invalid product ID',
+  });
+  }
   const product = await Product.findById(req.params.id);
   if (!product) {
     return res.status(404).json({ message: 'Product not found' });
@@ -137,6 +154,11 @@ export const deleteProduct = async (req, res) => {
 };
 
 export const createProductReview = async (req, res) => {
+   if (!isValidProductId(req.params.id)) {
+    return res.status(400).json({
+      message: 'Invalid product ID',
+    });
+  }
   const { rating, comment } = req.body;
   const product = await Product.findById(req.params.id);
 

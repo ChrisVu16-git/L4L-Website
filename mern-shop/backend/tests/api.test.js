@@ -28,10 +28,6 @@ test('GET /api/health returns a healthy response', async () => {
   });
 });
 
-after(async () => {
-  await mongoose.disconnect();
-});
-
 test('GET /api/products/:id returns an existing product', async () => {
   const product = await Product.findOne();
 
@@ -46,7 +42,108 @@ test('GET /api/products/:id returns an existing product', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body._id, product._id.toString());
   assert.equal(response.body.name, product.name);
+  });
+
+test('GET /api/products/:id rejects a malformed ID', async () => {
+  const response = await request(app).get(
+    '/api/products/not-a-valid-id'
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, 'Invalid product ID');
 });
+
+test('PUT /api/products/:id rejects a malformed ID', async () => {
+  assert.ok(process.env.JWT_SECRET, 'JWT_SECRET must be set in backend/.env');
+
+  const user = await User.create({
+    name: 'Malformed ID Test Admin',
+    username: 'malformed_put_admin',
+    email: `malformed_put_${Date.now()}@test.com`,
+    password: 'TestPassword123!',
+    isAdmin: true,
+  });
+
+  try {
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET
+    );
+
+    const response = await request(app)
+      .put('/api/products/not-a-valid-id')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Updated Test Product' });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.message, 'Invalid product ID');
+  } finally {
+    await User.deleteOne({ _id: user._id });
+  }
+});
+
+test('DELETE /api/products/:id rejects a malformed ID', async () => {
+  assert.ok(process.env.JWT_SECRET, 'JWT_SECRET must be set in backend/.env');
+
+  const user = await User.create({
+    name: 'Malformed ID Test Admin',
+    username: 'malformed_delete_admin',
+    email: `malformed_delete_${Date.now()}@test.com`,
+    password: 'TestPassword123!',
+    isAdmin: true,
+  });
+
+  try {
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET
+    );
+
+    const response = await request(app)
+      .delete('/api/products/not-a-valid-id')
+      .set('Authorization', `Bearer ${token}`);
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.message, 'Invalid product ID');
+  } finally {
+    await User.deleteOne({ _id: user._id });
+  }
+});
+
+
+test('POST /api/products/:id/reviews rejects a malformed ID', async () => {
+  assert.ok(process.env.JWT_SECRET, 'JWT_SECRET must be set in backend/.env');
+
+  const user = await User.create({
+    name: 'Malformed Review Test User',
+    username: 'malformed_review_user',
+    email: `malformed_review_${Date.now()}@test.com`,
+    password: 'TestPassword123!',
+    isAdmin: false,
+  });
+
+  try {
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET
+    );
+
+    const response = await request(app)
+      .post('/api/products/not-a-valid-id/reviews')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        rating: 5,
+        comment: 'Test review',
+      });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.message, 'Invalid product ID');
+  } finally {
+    await User.deleteOne({ _id: user._id });
+  }
+});
+
+
 
 test('POST /api/products rejects a regular user', async () => {
   assert.ok(process.env.JWT_SECRET, 'JWT_SECRET must be set in backend/.env');
