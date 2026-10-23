@@ -42,7 +42,7 @@ test('GET /api/products/:id returns an existing product', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body._id, product._id.toString());
   assert.equal(response.body.name, product.name);
-  });
+});
 
 test('GET /api/products/:id rejects a malformed ID', async () => {
   const response = await request(app).get(

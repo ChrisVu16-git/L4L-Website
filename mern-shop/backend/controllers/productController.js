@@ -9,7 +9,8 @@ export const getProducts = async (req, res) => {
           { name: { $regex: req.query.keyword, $options: 'i' } },
           { description: { $regex: req.query.keyword, $options: 'i' } },
         ],
-      } : {};
+      } :
+       {};
   const category = req.query.category ? { category: req.query.category } : {};
   const products = await Product.find({ ...keyword, ...category }).sort({ createdAt: -1 });
   res.json(products);
@@ -17,7 +18,7 @@ export const getProducts = async (req, res) => {
 
 
 export const getProductById = async (req, res) => {
-   if (!isValidProductId(req.params.id)) {
+  if (!isValidProductId(req.params.id)) {
     return res.status(400).json({
       message: 'Invalid product ID',
     });
