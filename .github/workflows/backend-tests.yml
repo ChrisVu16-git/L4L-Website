@@ -30,6 +30,7 @@ jobs:
     env:
       TEST_MONGO_URI: mongodb://127.0.0.1:27017/L4Lstore_test
       JWT_SECRET: ci-only-test-secret
+      CLOUDINARY_URL: cloudinary://123456:test-secret@test-cloud
 
     steps:
       - name: Check out repository
