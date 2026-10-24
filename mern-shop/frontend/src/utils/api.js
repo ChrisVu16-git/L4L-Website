@@ -1,3 +1,4 @@
+
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export async function apiFetch(endpoint, options = {}) {
@@ -5,12 +6,25 @@ export async function apiFetch(endpoint, options = {}) {
   const token = userInfo ? JSON.parse(userInfo).token : null;
 
   const headers = {
-    'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
 
-  const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+  // Only set JSON content type for normal JSON requests.
+  // FormData must let the browser set its own multipart boundary.
+  if (
+    options.body &&
+    !(options.body instanceof FormData) &&
+    !headers['Content-Type']
+  ) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
@@ -21,4 +35,7 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 export const formatPrice = (price) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(price);

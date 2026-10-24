@@ -1,6 +1,24 @@
 import Product from '../models/Product.js';
 
 const isValidProductId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+const isValidImageUrl = (value) => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+
+  try {
+    const url = new URL(value.trim());
+
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      url.hostname.includes('.') &&
+      url.hostname !== 'example.com' &&
+      !url.hostname.endsWith('.example.com')
+    );
+  } catch {
+    return false;
+  }
+};
 
 export const getProducts = async (req, res) => {
   const keyword = req.query.keyword
@@ -47,7 +65,7 @@ export const createProduct = async (req, res) => {
     !description?.trim() ||
     price === undefined ||
     !category?.trim() ||
-    !image?.trim() ||
+    !isValidImageUrl(image) ||
     countInStock === undefined
   ) {
     return res.status(400).json({
@@ -120,7 +138,7 @@ export const updateProduct = async (req, res) => {
     (product.category !== undefined &&
       (typeof product.category !== 'string' || !product.category.trim())) ||
     (product.image !== undefined &&
-      (typeof product.image !== 'string' || !product.image.trim())) ||
+      !isValidImageUrl(product.image)) ||
     !Number.isFinite(Number(product.price)) ||
     Number(product.price) < 0 ||
     !Number.isInteger(Number(product.countInStock)) ||

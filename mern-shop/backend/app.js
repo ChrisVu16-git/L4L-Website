@@ -4,6 +4,7 @@ import userRoutes from './routes/userRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import { stripeWebhook } from './controllers/orderController.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 
 
 const app = express();
@@ -20,6 +21,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/uploads', uploadRoutes);
+
 
 // production frontend setup
 
