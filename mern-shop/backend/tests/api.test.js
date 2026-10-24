@@ -261,7 +261,7 @@ test('POST /api/products creates a product as an admin', async () => {
       description: 'Created by an automated API test',
       price: 25,
       category: 'Testing',
-      image: 'test-product.jpg',
+      image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
       countInStock: 5,
     };
 
@@ -315,7 +315,7 @@ test('POST /api/products rejects a negative price', async () => {
         description: 'Testing negative price',
         price: -10,
         category: 'Testing',
-        image: 'test.jpg',
+        image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
         countInStock: 5,
       });
 
@@ -356,7 +356,7 @@ test('POST /api/products rejects negative stock', async () => {
         description: 'Testing negative stock',
         price: 10,
         category: 'Testing',
-        image: 'test.jpg',
+        image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
         countInStock: -5,
       });
 
@@ -391,7 +391,7 @@ test('PUT /api/products/:id updates a product as an admin', async () => {
       description: 'Original description',
       price: 100,
       category: 'Testing',
-      image: 'test.jpg',
+      image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
       countInStock: 5,
     });
 
