@@ -28,21 +28,35 @@ test('GET /api/health returns a healthy response', async () => {
   });
 });
 
+
 test('GET /api/products/:id returns an existing product', async () => {
-  const product = await Product.findOne();
+  const productName = `API GET Test Product ${Date.now()}`;
+  let product;
 
-  if (!product) {
-    assert.fail(
-      'No test products found. Add a sample product to l4lstore_test first.'
+  try {
+    product = await Product.create({
+      name: productName,
+      description: 'Created for the product GET API test',
+      price: 25,
+      category: 'Testing',
+      image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
+      countInStock: 5,
+    });
+
+    const response = await request(app).get(
+      `/api/products/${product._id}`
     );
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body._id, product._id.toString());
+    assert.equal(response.body.name, productName);
+  } finally {
+    if (product) {
+      await Product.deleteOne({ _id: product._id });
+    }
   }
-
-  const response = await request(app).get(`/api/products/${product._id}`);
-
-  assert.equal(response.status, 200);
-  assert.equal(response.body._id, product._id.toString());
-  assert.equal(response.body.name, product.name);
 });
+
 
 test('GET /api/products/:id rejects a malformed ID', async () => {
   const response = await request(app).get(
