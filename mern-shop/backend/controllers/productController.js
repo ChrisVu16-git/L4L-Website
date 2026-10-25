@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import { cleanupCloudinaryImageUnused } from '../utils/cloudinaryImage.js';
 
 const isValidProductId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 const isValidImageUrl = (value) => {
@@ -57,6 +58,7 @@ export const createProduct = async (req, res) => {
     price,
     category,
     image,
+    imagePublicId,
     countInStock,
   } = req.body;
 
@@ -93,6 +95,7 @@ export const createProduct = async (req, res) => {
     price: parsedPrice,
     category: category.trim(),
     image: image.trim(),
+    imagePublicId: imagePublicId || null,
     countInStock: parsedStock,
   });
 
@@ -115,12 +118,16 @@ export const updateProduct = async (req, res) => {
     });
   }
 
+  const oldImagePublicId = product.imagePublicId
+  const oldImageUrl = product.image
+
   const allowedFields = [
     'name',
     'description',
     'price',
     'category',
     'image',
+    'imagePublicId',
     'countInStock',
   ];
 
@@ -128,6 +135,16 @@ export const updateProduct = async (req, res) => {
     if (req.body[field] !== undefined) {
       product[field] = req.body[field];
     }
+  }
+
+  // If the URL changes without a new Cloudinary ID, don't keep
+  // the old ID attached to the new URL.
+  if (
+    req.body.image !== undefined &&
+    req.body.image !== oldImageUrl &&
+    req.body.imagePublicId === undefined
+  ) {
+    product.imagePublicId === null
   }
 
   if (
@@ -153,6 +170,16 @@ export const updateProduct = async (req, res) => {
   product.countInStock = Number(product.countInStock);
 
   const updatedProduct = await product.save();
+  if (
+    oldImagePublicId &&
+    oldImagePublicId !== updateProduct.imagePublicId
+  ) {
+    await cleanupCloudinaryImageUnused(
+      oldImagePublicId,
+      updateProduct._id
+    )
+  }
+
   res.json(updatedProduct);
 };
 
@@ -168,7 +195,14 @@ export const deleteProduct = async (req, res) => {
     return res.status(404).json({ message: 'Product not found' });
   }
 
+  const oldImagePublicId = product.imagePublicId;
+
   await product.deleteOne();
+
+  if (oldImagePublicId) {
+    await cleanupCloudinaryImageUnused(oldImagePublicId);
+  }
+
   res.json({ message: 'Product removed' });
 };
 
