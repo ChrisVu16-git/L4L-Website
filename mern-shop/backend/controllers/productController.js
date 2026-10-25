@@ -144,7 +144,7 @@ export const updateProduct = async (req, res) => {
     req.body.image !== oldImageUrl &&
     req.body.imagePublicId === undefined
   ) {
-    product.imagePublicId === null
+    product.imagePublicId = null
   }
 
   if (
@@ -179,7 +179,6 @@ export const updateProduct = async (req, res) => {
       updateProduct._id
     )
   }
-
   res.json(updatedProduct);
 };
 
