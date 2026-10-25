@@ -634,6 +634,131 @@ test('DELETE /api/products/:id returns 404 for a nonexistent product', async () 
 
 
 
+
+test('Cloudinary cleanup ignores image IDs outside the managed product folder', async () => {
+  const { default: cloudinary } = await import('../config/cloudinary.js');
+  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+  const originalDestroy = cloudinary.uploader.destroy;
+  let destroyCalls = 0;
+
+  cloudinary.uploader.destroy = async () => {
+    destroyCalls += 1;
+    return { result: 'ok' };
+  };
+
+  try {
+    await cleanupCloudinaryImageUnused('other-folder/not-managed');
+
+    assert.equal(destroyCalls, 0);
+  } finally {
+    cloudinary.uploader.destroy = originalDestroy;
+  }
+});
+
+test('Cloudinary cleanup keeps an image that is still referenced by a product', async () => {
+  const { default: cloudinary } = await import('../config/cloudinary.js');
+  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+  const publicId = `l4lstore/products/shared-${Date.now()}`;
+  let product;
+  const originalDestroy = cloudinary.uploader.destroy;
+  let destroyCalls = 0;
+
+  cloudinary.uploader.destroy = async () => {
+    destroyCalls += 1;
+    return { result: 'ok' };
+  };
+
+  try {
+    product = await Product.create({
+      name: 'Shared Cloudinary Image Test',
+      description: 'Verifies referenced images are preserved',
+      price: 10,
+      category: 'Testing',
+      image: 'https://res.cloudinary.com/demo/image/upload/shared.webp',
+      imagePublicId: publicId,
+      countInStock: 1,
+    });
+
+    await cleanupCloudinaryImageUnused(publicId);
+
+    assert.equal(destroyCalls, 0);
+    assert.ok(await Product.findById(product._id));
+  } finally {
+    cloudinary.uploader.destroy = originalDestroy;
+    if (product) await Product.deleteOne({ _id: product._id });
+  }
+});
+
+test('Cloudinary cleanup deletes a managed image when no product references it', async () => {
+  const { default: cloudinary } = await import('../config/cloudinary.js');
+  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+  const publicId = `l4lstore/products/unused-${Date.now()}`;
+  const originalDestroy = cloudinary.uploader.destroy;
+  const destroyCalls = [];
+
+  cloudinary.uploader.destroy = async (...args) => {
+    destroyCalls.push(args);
+    return { result: 'ok' };
+  };
+
+  try {
+    await cleanupCloudinaryImageUnused(publicId);
+
+    assert.equal(destroyCalls.length, 1);
+    assert.equal(destroyCalls[0][0], publicId);
+    assert.deepEqual(destroyCalls[0][1], { resource_type: 'image' });
+  } finally {
+    cloudinary.uploader.destroy = originalDestroy;
+  }
+});
+
+test('Cloudinary cleanup preserves a shared image until its last product reference is removed', async () => {
+  const { default: cloudinary } = await import('../config/cloudinary.js');
+  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+  const publicId = `l4lstore/products/shared-last-ref-${Date.now()}`;
+  let firstProduct;
+  let secondProduct;
+  const originalDestroy = cloudinary.uploader.destroy;
+  let destroyCalls = 0;
+
+  cloudinary.uploader.destroy = async () => {
+    destroyCalls += 1;
+    return { result: 'ok' };
+  };
+
+  try {
+    const sharedFields = {
+      description: 'Shared image cleanup test',
+      price: 10,
+      category: 'Testing',
+      image: 'https://res.cloudinary.com/demo/image/upload/shared.webp',
+      imagePublicId: publicId,
+      countInStock: 1,
+    };
+
+    firstProduct = await Product.create({
+      ...sharedFields,
+      name: 'First Shared Image Product',
+    });
+    secondProduct = await Product.create({
+      ...sharedFields,
+      name: 'Second Shared Image Product',
+    });
+
+    await firstProduct.deleteOne();
+    await cleanupCloudinaryImageUnused(publicId);
+    assert.equal(destroyCalls, 0);
+
+    await secondProduct.deleteOne();
+    await cleanupCloudinaryImageUnused(publicId);
+    assert.equal(destroyCalls, 1);
+  } finally {
+    cloudinary.uploader.destroy = originalDestroy;
+    if (firstProduct) await Product.deleteOne({ _id: firstProduct._id });
+    if (secondProduct) await Product.deleteOne({ _id: secondProduct._id });
+  }
+});
+
 after(async () => {
   await mongoose.disconnect();
 });
