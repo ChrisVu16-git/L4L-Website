@@ -1,63 +1,63 @@
-# L4LStore — Full-Stack E-Commerce Web App
+# L4LStore
 
-L4LStore is a full-stack online-store project built with the MERN stack. It includes a React storefront and an Express REST API backed by MongoDB Atlas, with JWT-based authentication, admin-protected product management, and Cloudinary image uploads.
+A full-stack e-commerce web application built with React and Node.js. This project demonstrates a product catalogue, user authentication, shopping-cart flow, and admin-only product management backed by MongoDB.
 
-## Live demo
+**Live storefront:** [Open L4LStore](https://l4l-website-1.onrender.com/)  
+**Backend health:** [API health check](https://l4l-website.onrender.com/api/health)  
+**Products API:** [Browse product data](https://l4l-website.onrender.com/api/products)  
+**Source code:** [ChrisVu16-git/L4L-Website](https://github.com/ChrisVu16-git/L4L-Website)
 
-- **Storefront:** https://l4l-website-1.onrender.com/
-- **Backend health:** https://l4l-website.onrender.com/api/health
-- **Products API:** https://l4l-website.onrender.com/api/products
-
-> **Current status:** The storefront and backend are deployed. Payment processing is **not currently deployed**. Do not use this project to make real payments.
+> **Status:** The frontend and backend are deployed as separate Render services. Payment processing is not currently deployed or verified for real transactions. Do not enter real payment details.
 
 ## Features
 
-- Browse the product catalog and view product details
-- Search and filter products
-- User registration and login using JWT authentication
-- Shopping cart experience
-- Admin-protected product create, read, update, and delete (CRUD) operations
-- Product input validation and API error handling
-- Cloudinary image uploads, replacement, and managed cleanup
-- REST API built with Express and MongoDB/Mongoose
-- Automated backend tests using Node's built-in test runner
-- Frontend and backend deployed as separate Render services
+- Browse products, view product details, search, and filter the catalogue
+- Register and sign in using JWT-based authentication
+- Shopping-cart and checkout/order screens
+- Protect authenticated-user and admin-only pages
+- Admin-protected product create, read, update, and delete (CRUD) API operations
+- Validate product fields and handle malformed product IDs and API errors
+- Upload product images through Cloudinary
+- Replace product images and clean up managed images when they are no longer referenced
+- Backend API tests using Node.js's built-in test runner and Supertest
 
 ## Tech stack
 
-| Area | Technologies |
+| Layer | Technologies |
 |---|---|
-| Frontend | React, Vite, React Router |
-| Backend | Node.js, Express.js |
+| Frontend | React 18, React Router, Vite |
+| Backend | Node.js, Express 4 |
 | Database | MongoDB Atlas, Mongoose |
-| Authentication | JSON Web Tokens (JWT), bcryptjs |
-| Image hosting | Cloudinary, Multer |
-| Testing | Node.js test runner, API checks, browser DevTools |
+| Authentication | JWT, bcryptjs |
+| Image uploads | Cloudinary, Multer |
+| API testing | Node.js test runner, Supertest |
 | Deployment | Render |
 | Version control | Git, GitHub |
 
 ## Repository structure
 
-The application is inside the `mern-shop/` directory.
+The application code lives inside `mern-shop/`.
 
 ```text
 L4L-Website/
-├── mern-shop/
-│   ├── backend/
-│   │   ├── config/          # Database connection
-│   │   ├── controllers/     # API request handlers
-│   │   ├── middleware/      # Authentication and authorization
-│   │   ├── models/          # Mongoose models
-│   │   ├── routes/          # API routes
-│   │   ├── tests/           # Backend tests (if present in this checkout)
-│   │   ├── server.js        # Express server entry point
-│   │   └── package.json
-│   ├── frontend/
-│   │   ├── src/             # React application
-│   │   ├── public/
-│   │   └── package.json
-│   └── package.json         # Root development scripts
-└── README.md
+├── README.md
+└── mern-shop/
+    ├── package.json
+    ├── backend/
+    │   ├── app.js
+    │   ├── server.js
+    │   ├── config/
+    │   ├── controllers/
+    │   ├── middleware/
+    │   ├── models/
+    │   ├── routes/
+    │   ├── utils/
+    │   ├── tests/
+    │   └── package.json
+    └── frontend/
+        ├── src/
+        ├── public/
+        └── package.json
 ```
 
 ## Run locally
@@ -65,46 +65,45 @@ L4L-Website/
 ### Prerequisites
 
 - Node.js and npm
-- MongoDB (local instance or MongoDB Atlas)
-- Cloudinary credentials to test image uploads
+- MongoDB (local or MongoDB Atlas)
+- A Cloudinary account for image uploads
 
-### 1. Clone the repository
+### 1. Clone and install dependencies
+
+From your terminal:
 
 ```bash
 git clone https://github.com/ChrisVu16-git/L4L-Website.git
 cd L4L-Website/mern-shop
-```
-
-### 2. Install dependencies
-
-From the `mern-shop/` directory:
-
-```bash
+npm install
 npm run install:all
 ```
 
-### 3. Configure environment variables
+### 2. Configure the backend
 
-Create `backend/.env` and configure the values for your environment:
+Create `mern-shop/backend/.env` with your own values:
 
 ```env
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/mern-shop
 JWT_SECRET=replace_with_a_long_random_secret
 CLIENT_URL=http://localhost:5173
+CLOUDINARY_URL=cloudinary://API_KEY:API_SECRET@CLOUD_NAME
 ```
 
-For MongoDB Atlas, replace the local `MONGODB_URI` with your Atlas connection string. Add the Cloudinary environment variables required by the backend's upload implementation. Never commit real secrets, database credentials, API keys, or production environment files.
+Replace the MongoDB and Cloudinary values with your own credentials. Use a strong, private `JWT_SECRET`. Never commit real credentials or `.env` files.
 
-Create `frontend/.env`:
+### 3. Configure the frontend
+
+Create `mern-shop/frontend/.env`:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
 ```
 
-Vite environment variables are used at build time. If you change `VITE_API_URL` for the deployed frontend, rebuild and redeploy the frontend.
+Vite reads `VITE_*` variables at build time. Rebuild and redeploy the frontend after changing the deployed API URL.
 
-### 4. Start the development servers
+### 4. Start the application
 
 From `mern-shop/`:
 
@@ -113,85 +112,91 @@ npm run dev
 ```
 
 Default local URLs:
+
 - Frontend: http://localhost:5173
-- Backend health check: http://localhost:5000/api/health
+- Backend health: http://localhost:5000/api/health
 - Products API: http://localhost:5000/api/products
 
-The backend must connect to MongoDB for database-backed routes to work. The health endpoint alone does not prove database connectivity; also verify the products endpoint and backend logs.
+The backend connects to MongoDB when it starts. If database-backed routes fail, check `MONGODB_URI` and the backend logs. A successful health response alone does not prove database connectivity.
+
+## Backend tests
+
+The backend tests use Node.js's built-in test runner and Supertest. Configure a separate test database in `mern-shop/backend/.env`:
+
+```env
+TEST_MONGO_URI=mongodb://127.0.0.1:27017/mern-shop-test
+```
+
+Ensure `MONGODB_URI`, `TEST_MONGO_URI`, `JWT_SECRET`, and `CLOUDINARY_URL` are configured. Then run:
+
+```bash
+cd backend
+npm test
+```
+
+Run tests only against a database intended for testing, not production data; tests may create and delete test records.
+
+To build the frontend, run from `mern-shop/`:
+
+```bash
+npm run build
+```
 
 ## API overview
 
-The API is mounted under `/api`.
+All endpoints are mounted under `/api`.
 
 | Method | Endpoint | Access | Purpose |
 |---|---|---|---|
-| GET | `/api/health` | Public | Basic API health response |
+| GET | `/api/health` | Public | Check API health |
 | POST | `/api/users/register` | Public | Register a user |
-| POST | `/api/users/login` | Public | Authenticate and obtain a token |
-| GET | `/api/users/profile` | Authenticated | Get the current user's profile |
+| POST | `/api/users/login` | Public | Sign in and receive an authentication token |
+| GET | `/api/users/profile` | Authenticated | Retrieve the current user's profile |
 | GET | `/api/products` | Public | List products |
 | GET | `/api/products/categories` | Public | List product categories |
-| GET | `/api/products/:id` | Public | Get a product by ID |
+| GET | `/api/products/:id` | Public | Retrieve a product |
+| POST | `/api/products/:id/reviews` | Authenticated | Submit a product review |
 | POST | `/api/products` | Admin | Create a product |
 | PUT | `/api/products/:id` | Admin | Update a product |
 | DELETE | `/api/products/:id` | Admin | Delete a product |
-| POST | `/api/products/:id/reviews` | Authenticated | Create a product review |
+| POST | `/api/uploads` | Access controlled by upload route middleware | Upload a product image |
 
-Admin routes require a valid JWT and admin authorization. Refer to the source code for exact request bodies and response formats.
+Admin product operations require a valid token and admin authorization. Check the route and middleware files for exact access rules, request bodies, and response formats.
 
-## Deployment configuration
+## Deployment
 
-The deployed frontend and backend are separate Render services.
+The frontend and backend are deployed as separate Render services.
 
-### Backend
+| Service | URL / configuration |
+|---|---|
+| Frontend | https://l4l-website-1.onrender.com/ |
+| Backend | https://l4l-website.onrender.com |
+| Health check | `/api/health` |
+| Frontend environment | `VITE_API_URL=https://l4l-website.onrender.com/api` |
+| Backend CORS origin | `CLIENT_URL=https://l4l-website-1.onrender.com` |
 
-Configure the backend service's environment variables in Render:
-
-- `MONGODB_URI` — MongoDB connection string
-- `JWT_SECRET` — strong secret used for JWT signing
-- `CLIENT_URL` — frontend origin: `https://l4l-website-1.onrender.com`
-- Cloudinary credentials required by the image-upload implementation
-
-### Frontend
-
-Set this Vite environment variable for the frontend service:
-
-```env
-VITE_API_URL=https://l4l-website.onrender.com/api
-```
-
-After changing a `VITE_*` variable, trigger a new frontend build/deployment. Keep secrets in Render environment settings rather than source control.
+Configure `MONGODB_URI`, `JWT_SECRET`, `CLOUDINARY_URL`, and `CLIENT_URL` in the backend Render service's environment settings. Keep secrets out of Git. Rebuild and redeploy the frontend after changing `VITE_API_URL`.
 
 ## Verification notes
 
-The following checks have been reported as completed during release-readiness testing:
+The following checks were reported as completed during deployment testing:
 
-- Health endpoint returns HTTP 200
-- Products API returns HTTP 200 and product records
-- Storefront display and frontend-to-API connectivity
-- Login/JWT and backend authorization checks
-- Product CRUD and validation checks
-- Cloudinary upload, image replacement, and safe cleanup checks
-- Oversized and non-image upload rejection
-- Public API response review, invalid-ID/error handling, and empty-search behavior
-- Responsive layout and browser console review
-- Render environment variables/logs and rollback/backup procedure review
+- Health endpoint and products API responses
+- Storefront rendering and frontend-to-backend connectivity
+- Login/JWT behaviour and protected admin access
+- Product CRUD, field validation, and malformed-ID handling
+- Cloudinary upload, replacement, upload rejection, and managed-image cleanup
+- Responsive layout and browser-console review
 
-These are test notes based on reported results, not a guarantee that every environment or future deployment will behave identically. Re-run relevant checks after changes.
+These notes reflect reported test results, not a guarantee about future deployments. Re-run relevant checks after code or configuration changes. Payment processing has not been deployed or verified for real transactions.
 
-## Known limitation
+## Known limitations and next steps
 
-- **Payment processing is not currently deployed.** Do not describe payment processing as production-ready until it is implemented and tested in a safe sandbox environment.
-- Deployment availability may depend on the hosting provider and service configuration.
-
-## Future improvements
-
-- Implement and test a sandbox payment flow before enabling real payments
-- Add frontend and end-to-end automated tests
-- Add CI checks for tests and production builds
-- Document API request/response schemas
-- Test the database backup and restore procedure
+- Payment processing is not ready for real transactions.
+- Add automated frontend and end-to-end tests.
+- Add CI checks for backend tests and frontend builds.
+- Expand API documentation with example request and response bodies.
 
 ## License
 
-No license is specified in this README. Add a license file if you intend to permit reuse of this project.
+No license is specified. Until a license is added, do not assume others have permission to reuse, modify, or distribute this project.
