@@ -87,8 +87,8 @@ export default function AdminPage() {
         body: formData,
       });
 
-      if (!result.imageUrl) {
-        throw new Error('Upload succeeded but no public ID was returned');
+      if (!result.imageUrl || !result.publicId) {
+        throw new Error('Upload succeeded, but the image URL or public ID was missing.');
       }
       setEditing((current) =>
         current ? {
