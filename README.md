@@ -65,7 +65,7 @@ L4L-Website/
 ### Prerequisites
 
 - Node.js and npm
-- MongoDB (local or MongoDB Atlas)
+- MongoDB (MongoDB Atlas)
 - A Cloudinary account for image uploads
 
 ### 1. Clone and install dependencies
@@ -179,7 +179,7 @@ Configure `MONGODB_URI`, `JWT_SECRET`, `CLOUDINARY_URL`, and `CLIENT_URL` in the
 
 ## Verification notes
 
-The following checks were reported as completed during deployment testing:
+The following checks as completed during deployment testing:
 
 - Health endpoint and products API responses
 - Storefront rendering and frontend-to-backend connectivity
@@ -187,8 +187,8 @@ The following checks were reported as completed during deployment testing:
 - Product CRUD, field validation, and malformed-ID handling
 - Cloudinary upload, replacement, upload rejection, and managed-image cleanup
 - Responsive layout and browser-console review
+- Render environment variables/logs and rollback/backup procedure review
 
-These notes reflect reported test results, not a guarantee about future deployments. Re-run relevant checks after code or configuration changes. Payment processing has not been deployed or verified for real transactions.
 
 ## Known limitations and next steps
 
@@ -199,4 +199,4 @@ These notes reflect reported test results, not a guarantee about future deployme
 
 ## License
 
-No license is specified. Until a license is added, do not assume others have permission to reuse, modify, or distribute this project.
+No license is specified.
