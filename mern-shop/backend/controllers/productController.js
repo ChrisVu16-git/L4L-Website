@@ -1,11 +1,11 @@
 import Product from '../models/Product.js';
+import { cleanupCloudinaryImageUnused } from '../utils/cloudinaryImage.js';
 
 const isValidProductId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 const isValidImageUrl = (value) => {
   if (typeof value !== 'string' || !value.trim()) {
     return false;
   }
-
   try {
     const url = new URL(value.trim());
 
@@ -19,18 +19,48 @@ const isValidImageUrl = (value) => {
     return false;
   }
 };
+const isValidManagedImageId = (value) =>
+  value === null ||
+  value === undefined ||
+  (
+    typeof value === 'string' &&
+    value.startsWith('l4lstore/products/') &&
+    value.trim() === value
+  );
+
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const getProducts = async (req, res) => {
-  const keyword = req.query.keyword
+  const rawKeyword = req.query.keyword;
+  if (
+    rawKeyword !== undefined &&
+    (typeof rawKeyword !== 'string' || rawKeyword.length > 100)
+  ) {
+    return res.status(400).json({
+      message: 'Search keyword must be a string of at most 100 characters',
+    });
+  }
+  const keyword = rawKeyword
     ? {
         $or: [
-          { name: { $regex: req.query.keyword, $options: 'i' } },
-          { description: { $regex: req.query.keyword, $options: 'i' } },
+          { name: {
+                $regex: escapeRegex(rawKeyword),
+                $options: 'i'
+            }},
+          { description: {
+                $regex: escapeRegex(rawKeyword),
+                $options: 'i' } },
         ],
-      } :
-       {};
-  const category = req.query.category ? { category: req.query.category } : {};
-  const products = await Product.find({ ...keyword, ...category }).sort({ createdAt: -1 });
+      }
+      : {};
+  const category = req.query.category ?
+      { category: req.query.category } :
+      {};
+  const products = await Product.find({
+        ...keyword,
+        ...category })
+        .sort({ createdAt: -1 });
   res.json(products);
 };
 
@@ -57,20 +87,29 @@ export const createProduct = async (req, res) => {
     price,
     category,
     image,
+    imagePublicId,
     countInStock,
   } = req.body;
 
   if (
-    !name?.trim() ||
-    !description?.trim() ||
-    price === undefined ||
-    !category?.trim() ||
-    !isValidImageUrl(image) ||
-    countInStock === undefined
+  typeof name !== 'string' ||
+  !name.trim() ||
+  typeof description !== 'string' ||
+  !description.trim() ||
+  price === undefined ||
+  price === null ||
+  price === '' ||
+  typeof category !== 'string' ||
+  !category.trim() ||
+  !isValidImageUrl(image) ||
+  countInStock === undefined ||
+  countInStock === null ||
+  countInStock === '' ||
+  !isValidManagedImageId(imagePublicId)
   ) {
-    return res.status(400).json({
-      message: 'Please provide all required product fields',
-    });
+  return res.status(400).json({
+    message: 'Please provide all required product fields',
+  });
   }
 
   const parsedPrice = Number(price);
@@ -93,6 +132,7 @@ export const createProduct = async (req, res) => {
     price: parsedPrice,
     category: category.trim(),
     image: image.trim(),
+    imagePublicId: imagePublicId || null,
     countInStock: parsedStock,
   });
 
@@ -107,6 +147,28 @@ export const updateProduct = async (req, res) => {
   });
   }
 
+  if (
+  req.body.imagePublicId !== undefined &&
+  !isValidManagedImageId(req.body.imagePublicId)
+  ) {
+  return res.status(400).json({
+    message: 'Invalid Cloudinary image ID',
+  });
+  }
+
+  if (
+  (req.body.price !== undefined &&
+    (req.body.price === null || req.body.price === '')) ||
+  (req.body.countInStock !== undefined &&
+    (req.body.countInStock === null || req.body.countInStock === ''))
+  ) {
+  return res.status(400).json({
+    message: 'Price and stock cannot be empty',
+  });
+  }
+
+
+
   const product = await Product.findById(req.params.id);
 
   if (!product) {
@@ -115,12 +177,16 @@ export const updateProduct = async (req, res) => {
     });
   }
 
+  const oldImagePublicId = product.imagePublicId
+  const oldImageUrl = product.image
+
   const allowedFields = [
     'name',
     'description',
     'price',
     'category',
     'image',
+    'imagePublicId',
     'countInStock',
   ];
 
@@ -128,6 +194,16 @@ export const updateProduct = async (req, res) => {
     if (req.body[field] !== undefined) {
       product[field] = req.body[field];
     }
+  }
+
+  // If the URL changes without a new Cloudinary ID, don't keep
+  // the old ID attached to the new URL.
+  if (
+    req.body.image !== undefined &&
+    req.body.image !== oldImageUrl &&
+    req.body.imagePublicId === undefined
+  ) {
+    product.imagePublicId = null
   }
 
   if (
@@ -153,6 +229,15 @@ export const updateProduct = async (req, res) => {
   product.countInStock = Number(product.countInStock);
 
   const updatedProduct = await product.save();
+  if (
+    oldImagePublicId &&
+    oldImagePublicId !== updatedProduct.imagePublicId
+  ) {
+    await cleanupCloudinaryImageUnused(
+      oldImagePublicId,
+      updatedProduct._id
+    );
+  }
   res.json(updatedProduct);
 };
 
@@ -168,12 +253,21 @@ export const deleteProduct = async (req, res) => {
     return res.status(404).json({ message: 'Product not found' });
   }
 
+  const oldImagePublicId = product.imagePublicId;
+
   await product.deleteOne();
+
+  if (oldImagePublicId) {
+    await cleanupCloudinaryImageUnused(oldImagePublicId);
+  }
+
   res.json({ message: 'Product removed' });
 };
 
+
+
 export const createProductReview = async (req, res) => {
-   if (!isValidProductId(req.params.id)) {
+  if (!isValidProductId(req.params.id)) {
     return res.status(400).json({
       message: 'Invalid product ID',
     });
@@ -192,11 +286,23 @@ export const createProductReview = async (req, res) => {
   if (alreadyReviewed) {
     return res.status(400).json({ message: 'Product already reviewed' });
   }
+  const parsedRating = Number(rating);
+  if (
+    !Number.isInteger(parsedRating) ||
+    parsedRating < 1 ||
+    parsedRating > 5 ||
+    typeof comment !== 'string' ||
+    !comment.trim()
+  ) {
+    return res.status(400).json({
+    message: 'Rating must be an integer from 1 to 5, and comment is required',
+  });
+  }
 
   const review = {
     name: req.user.name,
-    rating: Number(rating),
-    comment,
+    rating: parsedRating,
+    comment : comment.trim(),
     user: req.user._id,
   };
 
