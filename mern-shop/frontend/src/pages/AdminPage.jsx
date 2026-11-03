@@ -44,6 +44,7 @@ export default function AdminPage() {
       description: '',
       category: '',
       image: '',
+      imageKey: '',
       imagePublicId: '',
       price: 0,
       countInStock: 0,
@@ -79,30 +80,72 @@ export default function AdminPage() {
     setUploadError('');
 
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const result = await apiFetch('/uploads/image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!result.imageUrl || !result.publicId) {
-        throw new Error('Upload succeeded, but the image URL or public ID was missing.');
-      }
-      setEditing((current) =>
-        current ? {
-          ...current,
-          image: result.imageUrl,
-          imagePublicId: result.publicId } :
-        current
+       // 1. Ask backend for a temporary upload URL.
+      const { uploadUrl , imageUrl , key } = await apiFetch(
+        '/uploads/image/presign',
+        {
+          method : 'POST',
+          body : JSON.stringify({
+            contentType : file.type,
+          }),
+        }
       );
+
+       // 2. Upload the image directly to R2.
+       const uploadResponse = await fetch(uploadUrl, {
+          method : 'PUT',
+          headers : {
+            'Content-Type' : file.type,
+          },
+          body : file,
+         });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed upload image to R2.');
+        }
+
+        // 3. Save the image information in the product form.
+        setEditing((current) =>
+          current
+            ? {
+                ...current,
+                image: imageUrl,
+                imageKey: key,
+                imagePublicId: '',
+
+              }
+            : current 
+        );
     } catch (err) {
       setUploadError(err.message || 'Image upload failed.');
     } finally {
       setUploading(false);
     }
-  };
+  }
+  //     const formData = new FormData();
+  //     formData.append('image', file);
+
+  //     const result = await apiFetch('/uploads/image', {
+  //       method: 'POST',
+  //       body: formData,
+  //     });
+
+  //     if (!result.imageUrl || !result.publicId) {
+  //       throw new Error('Upload succeeded, but the image URL or public ID was missing.');
+  //     }
+  //     setEditing((current) =>
+  //       current ? {
+  //         ...current,
+  //         image: result.imageUrl,
+  //         imagePublicId: result.publicId } :
+  //       current
+  //     );
+  //   } catch (err) {
+  //     setUploadError(err.message || 'Image upload failed.');
+  //   } finally {
+  //     setUploading(false);
+  //    }
+  //  };
 
   const saveProduct = async (event) => {
     event.preventDefault();
@@ -226,7 +269,7 @@ export default function AdminPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
               >
-                {uploading ? 'Uploading image...' : 'Upload Image to Cloudinary'}
+                {uploading ? 'Uploading image...' : 'Upload Image to R2'}
               </button>
 
               {uploadError && (

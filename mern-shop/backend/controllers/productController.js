@@ -1,5 +1,6 @@
 import Product from '../models/Product.js';
-import { cleanupCloudinaryImageUnused } from '../utils/cloudinaryImage.js';
+// import { cleanupCloudinaryImageUnused } from '../utils/cloudinaryImage.js';
+import { cleanupR2ImageUnused } from '../utils/r2Image.js';
 
 const isValidProductId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 const isValidImageUrl = (value) => {
@@ -19,13 +20,22 @@ const isValidImageUrl = (value) => {
     return false;
   }
 };
-const isValidManagedImageId = (value) =>
+// const isValidManagedImageId = (value) =>
+//   value === null ||
+//   value === undefined ||
+//   value === '' ||
+//   (
+//     typeof value === 'string' &&
+//     value.startsWith('l4lstore/products/') &&
+//     value.trim() === value
+//   );
+
+  const isValidR2ImageKey = (value) =>
   value === null ||
   value === undefined ||
   (
     typeof value === 'string' &&
-    value.startsWith('l4lstore/products/') &&
-    value.trim() === value
+    /^products\/[A-Za-z0-9._-]+\.(jpg|png|webp|avif)$/i.test(value)
   );
 
 const escapeRegex = (value) =>
@@ -87,9 +97,23 @@ export const createProduct = async (req, res) => {
     price,
     category,
     image,
-    imagePublicId,
+    // imagePublicId,
+    imageKey,
     countInStock,
   } = req.body;
+
+  // console.log('Create product validation:', {
+  // nameValid: typeof name === 'string' && !!name.trim(),
+  // descriptionValid: typeof description === 'string' && !!description.trim(),
+  // price,
+  // categoryValid: typeof category === 'string' && !!category.trim(),
+  // imageValid: isValidImageUrl(image),
+  // imageKey,
+  // imageKeyValid: isValidR2ImageKey(imageKey),
+  // imagePublicId,
+  // imagePublicIdValid: isValidManagedImageId(imagePublicId),
+  // countInStock,
+  // });
 
   if (
   typeof name !== 'string' ||
@@ -105,12 +129,15 @@ export const createProduct = async (req, res) => {
   countInStock === undefined ||
   countInStock === null ||
   countInStock === '' ||
-  !isValidManagedImageId(imagePublicId)
+  // !isValidManagedImageId(imagePublicId) ||
+  !isValidR2ImageKey(imageKey)
   ) {
   return res.status(400).json({
     message: 'Please provide all required product fields',
   });
   }
+
+  
 
   const parsedPrice = Number(price);
   const parsedStock = Number(countInStock);
@@ -132,7 +159,8 @@ export const createProduct = async (req, res) => {
     price: parsedPrice,
     category: category.trim(),
     image: image.trim(),
-    imagePublicId: imagePublicId || null,
+    imageKey: imageKey || null,
+    // imagePublicId: imagePublicId || null,
     countInStock: parsedStock,
   });
 
@@ -147,14 +175,23 @@ export const updateProduct = async (req, res) => {
   });
   }
 
+  // if (
+  // req.body.imagePublicId !== undefined &&
+  // !isValidManagedImageId(req.body.imagePublicId)
+  // ) { return res.status(400).json({
+  //   message: 'Invalid Cloudinary image ID',
+  // });
+  // }
+  
   if (
-  req.body.imagePublicId !== undefined &&
-  !isValidManagedImageId(req.body.imagePublicId)
+  req.body.imageKey !== undefined &&
+  !isValidR2ImageKey(req.body.imageKey)
   ) {
   return res.status(400).json({
-    message: 'Invalid Cloudinary image ID',
+    message: 'Invalid R2 image key',
   });
   }
+
 
   if (
   (req.body.price !== undefined &&
@@ -177,8 +214,9 @@ export const updateProduct = async (req, res) => {
     });
   }
 
-  const oldImagePublicId = product.imagePublicId
-  const oldImageUrl = product.image
+  // const oldImagePublicId = product.imagePublicId;
+  const oldImageUrl = product.image;
+  const oldImageKey = product.imageKey;
 
   const allowedFields = [
     'name',
@@ -186,7 +224,8 @@ export const updateProduct = async (req, res) => {
     'price',
     'category',
     'image',
-    'imagePublicId',
+    'imageKey',
+    // 'imagePublicId',
     'countInStock',
   ];
 
@@ -198,12 +237,20 @@ export const updateProduct = async (req, res) => {
 
   // If the URL changes without a new Cloudinary ID, don't keep
   // the old ID attached to the new URL.
+  // if (
+  //   req.body.image !== undefined &&
+  //   req.body.image !== oldImageUrl &&
+  //   req.body.imagePublicId === undefined
+  // ) {
+  //   product.imagePublicId = null
+  // }
+
   if (
-    req.body.image !== undefined &&
-    req.body.image !== oldImageUrl &&
-    req.body.imagePublicId === undefined
+  req.body.image !== undefined &&
+  req.body.image !== oldImageUrl &&
+  req.body.imageKey === undefined
   ) {
-    product.imagePublicId = null
+  product.imageKey = null;
   }
 
   if (
@@ -229,15 +276,20 @@ export const updateProduct = async (req, res) => {
   product.countInStock = Number(product.countInStock);
 
   const updatedProduct = await product.save();
-  if (
-    oldImagePublicId &&
-    oldImagePublicId !== updatedProduct.imagePublicId
-  ) {
-    await cleanupCloudinaryImageUnused(
-      oldImagePublicId,
-      updatedProduct._id
-    );
+
+  if (oldImageKey && oldImageKey !== updatedProduct.imageKey) {
+  await cleanupR2ImageUnused(oldImageKey, updatedProduct._id);
   }
+
+  // if (
+  //   oldImagePublicId &&
+  //   oldImagePublicId !== updatedProduct.imagePublicId
+  // ) {
+  //   await cleanupCloudinaryImageUnused(
+  //     oldImagePublicId,
+  //     updatedProduct._id
+  //   );
+  // }
   res.json(updatedProduct);
 };
 
@@ -253,13 +305,17 @@ export const deleteProduct = async (req, res) => {
     return res.status(404).json({ message: 'Product not found' });
   }
 
-  const oldImagePublicId = product.imagePublicId;
+  // const oldImagePublicId = product.imagePublicId;
+  const oldImageKey = product.imageKey;
 
   await product.deleteOne();
 
-  if (oldImagePublicId) {
-    await cleanupCloudinaryImageUnused(oldImagePublicId);
-  }
+  await cleanupR2ImageUnused(oldImageKey);
+
+
+  // if (oldImagePublicId) {
+  //   await cleanupCloudinaryImageUnused(oldImagePublicId);
+  // }
 
   res.json({ message: 'Product removed' });
 };

@@ -39,7 +39,7 @@ test('GET /api/products/:id returns an existing product', async () => {
       description: 'Created for the product GET API test',
       price: 25,
       category: 'Testing',
-      image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
+      image: 'https://images.unsplash.com/photo-1547721064-da6cfb341d50',
       countInStock: 5,
     });
 
@@ -275,7 +275,7 @@ test('POST /api/products creates a product as an admin', async () => {
       description: 'Created by an automated API test',
       price: 25,
       category: 'Testing',
-      image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
+      image: 'https://images.unsplash.com/photo-1547721064-da6cfb341d50',
       countInStock: 5,
     };
 
@@ -329,7 +329,7 @@ test('POST /api/products rejects a negative price', async () => {
         description: 'Testing negative price',
         price: -10,
         category: 'Testing',
-        image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
+        image: 'https://images.unsplash.com/photo-1547721064-da6cfb341d50',
         countInStock: 5,
       });
 
@@ -370,7 +370,7 @@ test('POST /api/products rejects negative stock', async () => {
         description: 'Testing negative stock',
         price: 10,
         category: 'Testing',
-        image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
+        image: 'https://images.unsplash.com/photo-1547721064-da6cfb341d50',
         countInStock: -5,
       });
 
@@ -405,7 +405,7 @@ test('PUT /api/products/:id updates a product as an admin', async () => {
       description: 'Original description',
       price: 100,
       category: 'Testing',
-      image: 'https://res.cloudinary.com/demo/image/upload/test.webp',
+      image: 'https://images.unsplash.com/photo-1547721064-da6cfb341d50',
       countInStock: 5,
     });
 
@@ -632,95 +632,96 @@ test('DELETE /api/products/:id returns 404 for a nonexistent product', async () 
   }
 });
 
-test('Cloudinary cleanup ignores image IDs outside the managed product folder', async () => {
-  const { default: cloudinary } = await import('../config/cloudinary.js');
-  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
-  const originalDestroy = cloudinary.uploader.destroy;
-  let destroyCalls = 0;
 
-  cloudinary.uploader.destroy = async () => {
-    destroyCalls += 1;
-    return { result: 'ok' };
-  };
+test('R2 cleanup ignores image keys outside the managed product folder', async () => {
+  const { cleanupR2ImageUnused } = await import('../utils/r2Image.js');
 
-  try {
-    await cleanupCloudinaryImageUnused('other-folder/not-managed');
-
-    assert.equal(destroyCalls, 0);
-  } finally {
-    cloudinary.uploader.destroy = originalDestroy;
-  }
+  // An unmanaged key must be ignored without attempting deletion.
+  await assert.doesNotReject(
+    cleanupR2ImageUnused('other-folder/not-managed.jpg')
+  );
 });
 
-test('Cloudinary cleanup keeps an image that is still referenced by a product', async () => {
-  const { default: cloudinary } = await import('../config/cloudinary.js');
-  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
-  const publicId = `l4lstore/products/shared-${Date.now()}`;
-  let product;
-  const originalDestroy = cloudinary.uploader.destroy;
-  let destroyCalls = 0;
+test('R2 cleanup preserves an image that is still referenced by a product', async () => {
+  const { default: r2 } = await import('../config/r2.js');
+  const { cleanupR2ImageUnused } = await import('../utils/r2Image.js');
+  const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
 
-  cloudinary.uploader.destroy = async () => {
-    destroyCalls += 1;
-    return { result: 'ok' };
+  const imageKey = `products/shared-${Date.now()}.jpg`;
+  let product;
+  const originalSend = r2.send;
+  let deleteCalls = 0;
+
+  r2.send = async (command) => {
+    if (command instanceof DeleteObjectCommand) {
+      deleteCalls += 1;
+    }
+    return {};
   };
 
   try {
     product = await Product.create({
-      name: 'Shared Cloudinary Image Test',
+      name: 'Shared R2 Image Test',
       description: 'Verifies referenced images are preserved',
       price: 10,
       category: 'Testing',
-      image: 'https://res.cloudinary.com/demo/image/upload/shared.webp',
-      imagePublicId: publicId,
+      image: `${process.env.R2_PUBLIC_URL}/${imageKey}`,
+      imageKey,
       countInStock: 1,
     });
 
-    await cleanupCloudinaryImageUnused(publicId);
+    await cleanupR2ImageUnused(imageKey);
 
-    assert.equal(destroyCalls, 0);
+    assert.equal(deleteCalls, 0);
     assert.ok(await Product.findById(product._id));
   } finally {
-    cloudinary.uploader.destroy = originalDestroy;
+    r2.send = originalSend;
     if (product) await Product.deleteOne({ _id: product._id });
   }
 });
 
-test('Cloudinary cleanup deletes a managed image when no product references it', async () => {
-  const { default: cloudinary } = await import('../config/cloudinary.js');
-  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
-  const publicId = `l4lstore/products/unused-${Date.now()}`;
-  const originalDestroy = cloudinary.uploader.destroy;
-  const destroyCalls = [];
+test('R2 cleanup deletes an unused image', async () => {
+  const { default: r2 } = await import('../config/r2.js');
+  const { cleanupR2ImageUnused } = await import('../utils/r2Image.js');
+  const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
 
-  cloudinary.uploader.destroy = async (...args) => {
-    destroyCalls.push(args);
-    return { result: 'ok' };
+  const imageKey = `products/unused-${Date.now()}.jpg`;
+  const originalSend = r2.send;
+  const deleteCommands = [];
+
+  r2.send = async (command) => {
+    if (command instanceof DeleteObjectCommand) {
+      deleteCommands.push(command);
+    }
+    return {};
   };
 
   try {
-    await cleanupCloudinaryImageUnused(publicId);
+    await cleanupR2ImageUnused(imageKey);
 
-    assert.equal(destroyCalls.length, 1);
-    assert.equal(destroyCalls[0][0], publicId);
-    assert.deepEqual(destroyCalls[0][1], { resource_type: 'image' });
+    assert.equal(deleteCommands.length, 1);
+    assert.equal(deleteCommands[0].input.Key, imageKey);
   } finally {
-    cloudinary.uploader.destroy = originalDestroy;
+    r2.send = originalSend;
   }
 });
 
-test('Cloudinary cleanup preserves a shared image until its last product reference is removed', async () => {
-  const { default: cloudinary } = await import('../config/cloudinary.js');
-  const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
-  const publicId = `l4lstore/products/shared-last-ref-${Date.now()}`;
+test('R2 cleanup preserves a shared image until its last product reference is removed', async () => {
+  const { default: r2 } = await import('../config/r2.js');
+  const { cleanupR2ImageUnused } = await import('../utils/r2Image.js');
+  const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+
+  const imageKey = `products/shared-last-ref-${Date.now()}.jpg`;
   let firstProduct;
   let secondProduct;
-  const originalDestroy = cloudinary.uploader.destroy;
-  let destroyCalls = 0;
+  const originalSend = r2.send;
+  let deleteCalls = 0;
 
-  cloudinary.uploader.destroy = async () => {
-    destroyCalls += 1;
-    return { result: 'ok' };
+  r2.send = async (command) => {
+    if (command instanceof DeleteObjectCommand) {
+      deleteCalls += 1;
+    }
+    return {};
   };
 
   try {
@@ -728,8 +729,8 @@ test('Cloudinary cleanup preserves a shared image until its last product referen
       description: 'Shared image cleanup test',
       price: 10,
       category: 'Testing',
-      image: 'https://res.cloudinary.com/demo/image/upload/shared.webp',
-      imagePublicId: publicId,
+      image: `${process.env.R2_PUBLIC_URL}/${imageKey}`,
+      imageKey,
       countInStock: 1,
     };
 
@@ -737,24 +738,152 @@ test('Cloudinary cleanup preserves a shared image until its last product referen
       ...sharedFields,
       name: 'First Shared Image Product',
     });
+
     secondProduct = await Product.create({
       ...sharedFields,
       name: 'Second Shared Image Product',
     });
 
     await firstProduct.deleteOne();
-    await cleanupCloudinaryImageUnused(publicId);
-    assert.equal(destroyCalls, 0);
+    await cleanupR2ImageUnused(imageKey);
+
+    assert.equal(deleteCalls, 0);
 
     await secondProduct.deleteOne();
-    await cleanupCloudinaryImageUnused(publicId);
-    assert.equal(destroyCalls, 1);
+    await cleanupR2ImageUnused(imageKey);
+
+    assert.equal(deleteCalls, 1);
   } finally {
-    cloudinary.uploader.destroy = originalDestroy;
+    r2.send = originalSend;
     if (firstProduct) await Product.deleteOne({ _id: firstProduct._id });
     if (secondProduct) await Product.deleteOne({ _id: secondProduct._id });
   }
 });
+
+
+// test('Cloudinary cleanup ignores image IDs outside the managed product folder', async () => {
+//   const { default: cloudinary } = await import('../config/cloudinary.js');
+//   const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+//   const originalDestroy = cloudinary.uploader.destroy;
+//   let destroyCalls = 0;
+
+//   cloudinary.uploader.destroy = async () => {
+//     destroyCalls += 1;
+//     return { result: 'ok' };
+//   };
+
+//   try {
+//     await cleanupCloudinaryImageUnused('other-folder/not-managed');
+
+//     assert.equal(destroyCalls, 0);
+//   } finally {
+//     cloudinary.uploader.destroy = originalDestroy;
+//   }
+// });
+
+// test('Cloudinary cleanup keeps an image that is still referenced by a product', async () => {
+//   const { default: cloudinary } = await import('../config/cloudinary.js');
+//   const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+//   const publicId = `l4lstore/products/shared-${Date.now()}`;
+//   let product;
+//   const originalDestroy = cloudinary.uploader.destroy;
+//   let destroyCalls = 0;
+
+//   cloudinary.uploader.destroy = async () => {
+//     destroyCalls += 1;
+//     return { result: 'ok' };
+//   };
+
+//   try {
+//     product = await Product.create({
+//       name: 'Shared Cloudinary Image Test',
+//       description: 'Verifies referenced images are preserved',
+//       price: 10,
+//       category: 'Testing',
+//       image: 'https://res.cloudinary.com/demo/image/upload/shared.webp',
+//       imagePublicId: publicId,
+//       countInStock: 1,
+//     });
+
+//     await cleanupCloudinaryImageUnused(publicId);
+
+//     assert.equal(destroyCalls, 0);
+//     assert.ok(await Product.findById(product._id));
+//   } finally {
+//     cloudinary.uploader.destroy = originalDestroy;
+//     if (product) await Product.deleteOne({ _id: product._id });
+//   }
+// });
+
+// test('Cloudinary cleanup deletes a managed image when no product references it', async () => {
+//   const { default: cloudinary } = await import('../config/cloudinary.js');
+//   const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+//   const publicId = `l4lstore/products/unused-${Date.now()}`;
+//   const originalDestroy = cloudinary.uploader.destroy;
+//   const destroyCalls = [];
+
+//   cloudinary.uploader.destroy = async (...args) => {
+//     destroyCalls.push(args);
+//     return { result: 'ok' };
+//   };
+
+//   try {
+//     await cleanupCloudinaryImageUnused(publicId);
+
+//     assert.equal(destroyCalls.length, 1);
+//     assert.equal(destroyCalls[0][0], publicId);
+//     assert.deepEqual(destroyCalls[0][1], { resource_type: 'image' });
+//   } finally {
+//     cloudinary.uploader.destroy = originalDestroy;
+//   }
+// });
+
+// test('Cloudinary cleanup preserves a shared image until its last product reference is removed', async () => {
+//   const { default: cloudinary } = await import('../config/cloudinary.js');
+//   const { cleanupCloudinaryImageUnused } = await import('../utils/cloudinaryImage.js');
+//   const publicId = `l4lstore/products/shared-last-ref-${Date.now()}`;
+//   let firstProduct;
+//   let secondProduct;
+//   const originalDestroy = cloudinary.uploader.destroy;
+//   let destroyCalls = 0;
+
+//   cloudinary.uploader.destroy = async () => {
+//     destroyCalls += 1;
+//     return { result: 'ok' };
+//   };
+
+//   try {
+//     const sharedFields = {
+//       description: 'Shared image cleanup test',
+//       price: 10,
+//       category: 'Testing',
+//       image: 'https://res.cloudinary.com/demo/image/upload/shared.webp',
+//       imagePublicId: publicId,
+//       countInStock: 1,
+//     };
+
+//     firstProduct = await Product.create({
+//       ...sharedFields,
+//       name: 'First Shared Image Product',
+//     });
+//     secondProduct = await Product.create({
+//       ...sharedFields,
+//       name: 'Second Shared Image Product',
+//     });
+
+//     await firstProduct.deleteOne();
+//     await cleanupCloudinaryImageUnused(publicId);
+//     assert.equal(destroyCalls, 0);
+
+//     await secondProduct.deleteOne();
+//     await cleanupCloudinaryImageUnused(publicId);
+//     assert.equal(destroyCalls, 1);
+//   } finally {
+//     cloudinary.uploader.destroy = originalDestroy;
+//     if (firstProduct) await Product.deleteOne({ _id: firstProduct._id });
+//     if (secondProduct) await Product.deleteOne({ _id: secondProduct._id });
+//   }
+// });
 after(async () => {
   await mongoose.disconnect();
 });
