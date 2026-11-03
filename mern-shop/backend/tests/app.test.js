@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 
 //Test-only credentials : never use real secrets in automated test
-process.env.CLOUDINARY_URL ||= 'cloudinary://123456:test-secret@test-cloud';
+// process.env.CLOUDINARY_URL ||= 'cloudinary://123456:test-secret@test-cloud';
 process.env.JWT_SECRET ||= 'test-only-jwt-secret'
 
 const {default:app} = await import('../app.js');
@@ -16,12 +16,20 @@ test('GET /api/health return healthy status', async () => {
 
 })
 
-test('POST /api/uploads/image reject a request without a token', async() => {
-    const response = await request(app).post('/api/uploads/image');
+// test('POST /api/uploads/image reject a request without a token', async() => {
+//     const response = await request(app).post('/api/uploads/image');
 
-    assert.equal(response.status, 401);
-    assert.match(response.body.message, /token/i)
-})
+//     assert.equal(response.status, 401);
+//     assert.match(response.body.message, /token/i)
+// })
+
+test('POST /api/uploads/image/presign rejects a request without a token', async () => {
+  const response = await request(app)
+    .post('/api/uploads/image/presign')
+    .send({ contentType: 'image/jpeg' });
+
+  assert.equal(response.status, 401);
+});
 
 test('POST /api/products reject product creation without a token', async()=> {
     const response = await request(app)
@@ -31,7 +39,7 @@ test('POST /api/products reject product creation without a token', async()=> {
         description : "Automated test",
         price : 20,
         category : "Figures",
-        image : "https://res.cloudinary.com/demo/image/upload/test.webp",
+        image : "https://example.com/test.webp",
         countInStock : 5,
     });
 
