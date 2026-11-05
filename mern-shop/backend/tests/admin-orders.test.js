@@ -75,3 +75,11 @@ test('cancelled unpaid orders cannot check out or fulfill a late successful IPN'
     assert.equal(response.body.RspCode,'99');assert.equal((await Order.findById(cancelledOrder._id)).isPaid,false);
   } finally {keys.forEach((key,i)=>{if(original[i]===undefined)delete process.env[key];else process.env[key]=original[i];});}
 });
+
+test('old price forms cannot overwrite VND prices without the current client marker',async()=>{
+  const endpoint=`/api/products/${product._id}`;
+  const blocked=await request(app).put(endpoint).set(auth(admin)).send({price:10,currency:'VND'});
+  assert.equal(blocked.status,409);assert.equal((await Product.findById(product._id)).price,625000);
+  const accepted=await request(app).put(endpoint).set(auth(admin)).set('X-L4L-Client-Currency','VND').send({price:625000,currency:'VND'});
+  assert.equal(accepted.status,200);
+});

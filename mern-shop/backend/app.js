@@ -8,6 +8,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 
 
 const app = express();
+app.use((_req, res, next) => { res.setHeader('X-L4L-Currency', 'VND'); next(); });
 const allowedOrigins = [
   'http://localhost:5173',
   'https://l4-l-website.vercel.app',
@@ -23,6 +24,7 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
+    exposedHeaders: ['X-L4L-Currency'],
   })
 );
 app.use(express.json());

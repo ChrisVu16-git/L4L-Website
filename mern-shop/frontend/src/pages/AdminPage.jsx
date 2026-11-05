@@ -48,6 +48,7 @@ export default function AdminPage() {
       imageKey: '',
       imagePublicId: '',
       price: 0,
+      currency: 'VND',
       countInStock: 0,
     });
   };

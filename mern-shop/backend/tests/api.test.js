@@ -87,7 +87,7 @@ test('PUT /api/products/:id rejects a malformed ID', async () => {
     const response = await request(app)
       .put('/api/products/not-a-valid-id')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Updated Test Product' });
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND', name: 'Updated Test Product' });
 
     assert.equal(response.status, 400);
     assert.equal(response.body.message, 'Invalid product ID');
@@ -145,7 +145,7 @@ test('POST /api/products/:id/reviews rejects a malformed ID', async () => {
     const response = await request(app)
       .post('/api/products/not-a-valid-id/reviews')
       .set('Authorization', `Bearer ${token}`)
-      .send({
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',
         rating: 5,
         comment: 'Test review',
       });
@@ -177,7 +177,7 @@ test('POST /api/products rejects a regular user', async () => {
     const response = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${token}`)
-      .send({
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',
         name: 'Test Product',
         description: 'Automated test product',
         price: 10,
@@ -211,7 +211,7 @@ test('POST /api/products rejects missing fields for an admin', async () => {
     const response = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${token}`)
-      .send({});
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',});
 
     assert.equal(response.status, 400);
     assert.equal(
@@ -226,7 +226,7 @@ test('POST /api/products rejects missing fields for an admin', async () => {
 test('POST /api/products rejects requests without a token', async () => {
   const response = await request(app)
     .post('/api/products')
-    .send({
+    .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',
       name: 'Test Product',
       description: 'Automated test product',
       price: 10,
@@ -243,7 +243,7 @@ test('POST /api/products rejects missing required fields', async () => {
   const response = await request(app)
     .post('/api/products')
     .set('Authorization', 'Bearer invalid-test-token')
-    .send({});
+    .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',});
 
   assert.equal(response.status, 401);
 });
@@ -270,7 +270,7 @@ test('POST /api/products creates a product as an admin', async () => {
       process.env.JWT_SECRET
     );
 
-    const payload = {
+    const payload = { currency: 'VND',
       name: productName,
       description: 'Created by an automated API test',
       price: 25,
@@ -282,7 +282,7 @@ test('POST /api/products creates a product as an admin', async () => {
     const response = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${token}`)
-      .send(payload);
+      .set('X-L4L-Client-Currency', 'VND').send(payload);
 
     assert.equal(response.status, 201);
     assert.equal(response.body.name, productName);
@@ -324,7 +324,7 @@ test('POST /api/products rejects a negative price', async () => {
     const response = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${token}`)
-      .send({
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',
         name: 'Invalid Price Product',
         description: 'Testing negative price',
         price: -10,
@@ -365,7 +365,7 @@ test('POST /api/products rejects negative stock', async () => {
     const response = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${token}`)
-      .send({
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',
         name: 'Invalid Stock Product',
         description: 'Testing negative stock',
         price: 10,
@@ -417,7 +417,7 @@ test('PUT /api/products/:id updates a product as an admin', async () => {
     const response = await request(app)
       .put(`/api/products/${product._id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND',
         name: 'Product After Update',
         price: 150,
         countInStock: 8,
@@ -519,7 +519,7 @@ test('PUT /api/products/:id rejects a regular user', async () => {
     const response = await request(app)
       .put(`/api/products/${product._id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Unauthorized Update' });
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND', name: 'Unauthorized Update' });
 
     assert.equal(response.status, 403);
     assert.equal(response.body.message, 'Admin access required');
@@ -593,7 +593,7 @@ test('PUT /api/products/:id returns 404 for a nonexistent product', async () => 
     const response = await request(app)
       .put(`/api/products/${nonexistentId}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Updated Product' });
+      .set('X-L4L-Client-Currency', 'VND').send({ currency: 'VND', name: 'Updated Product' });
 
     assert.equal(response.status, 404);
     assert.equal(response.body.message, 'Product not found');
