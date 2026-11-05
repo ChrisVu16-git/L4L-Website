@@ -1,4 +1,4 @@
-import { totals } from '../../../shared/commerce.mjs';
+import { totals } from '../utils/commerce-rules';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';

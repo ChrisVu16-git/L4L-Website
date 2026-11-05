@@ -1,4 +1,4 @@
-import { totals, validateShipping } from '../../../shared/commerce.mjs';
+import { totals, validateShipping } from '../utils/commerce-rules';
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';

@@ -1,3 +1,4 @@
+// Keep the frontend/backend copies aligned: each hosting service builds from its own root.
 // Fixed, user-approved conversion for pre-VND records; never a live FX rate.
 export const LEGACY_USD_TO_VND = 25000;
 export function toVnd(amount, currency) {

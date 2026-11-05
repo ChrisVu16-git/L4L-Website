@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toVnd, totals, validateShipping } from '../../shared/commerce.mjs';
+import { toVnd, totals, validateShipping } from '../utils/commerce-rules.js';
 import { productView, orderView } from '../utils/commerce.js';
 const address = { recipientName:'Nguyễn Văn An', phone:'+84 912 345 678', address:'12 Nguyễn Huệ', ward:'Phường Sài Gòn', city:'TP. Hồ Chí Minh', country:'VN', postalCode:'' };
 test('legacy prices convert exactly once and VND records retain their numeric value', () => {

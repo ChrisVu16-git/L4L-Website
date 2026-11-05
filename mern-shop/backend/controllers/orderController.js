@@ -1,5 +1,5 @@
 import { orderView, productView } from '../utils/commerce.js';
-import { totals, toVnd, validateShipping, orderStatus } from '../../shared/commerce.mjs';
+import { totals, toVnd, validateShipping, orderStatus } from '../utils/commerce-rules.js';
 import mongoose from 'mongoose';
 import { randomBytes } from 'node:crypto';
 import { paymentConfig, amountVnd, checkoutUrl, callbackParams, verifyPayment, matchesAttempt, paymentSucceeded } from '../utils/payments.js';

@@ -1,4 +1,4 @@
-import { toVnd, orderStatus } from '../../shared/commerce.mjs';
+import { toVnd, orderStatus } from './commerce-rules.js';
 export function productView(product) {
   const value = product.toObject ? product.toObject() : { ...product };
   return { ...value, price: toVnd(value.price, value.currency), currency: 'VND' };

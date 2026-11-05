@@ -1,5 +1,5 @@
 import { useNavigate, Navigate } from 'react-router-dom';
-import { validateShipping } from '../../../shared/commerce.mjs';
+import { validateShipping } from '../utils/commerce-rules';
 import { Message } from '../components/UI';
 export default function PaymentPage() {
   const navigate = useNavigate();

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { orderStatus, statusLabels, validateShipping } from '../../../shared/commerce.mjs';
+import { orderStatus, statusLabels, validateShipping } from '../utils/commerce-rules';
 import { apiFetch, formatPrice } from '../utils/api';
 import ShippingFields from './ShippingFields';
 import { Message } from './UI';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { validateShipping } from '../../../shared/commerce.mjs';
+import { validateShipping } from '../utils/commerce-rules';
 import ShippingFields from '../components/ShippingFields';
 export default function ShippingPage() {
   const navigate = useNavigate();

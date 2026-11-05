@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { statusLabels, orderStatus } from '../../../shared/commerce.mjs';
+import { statusLabels, orderStatus } from '../utils/commerce-rules';
 import { apiFetch, formatPrice } from '../utils/api';
 import Loader, { Message } from '../components/UI';
 export default function OrderPage() {
