@@ -20,22 +20,22 @@ export default function Header() {
           L4LStore
         </Link>
 
-        <nav className="nav" aria-label="Main navigation">
-          <Link to="/">Shop</Link>
+        <nav className="nav" aria-label="Điều hướng chính">
+          <Link to="/">Cửa hàng</Link>
           {user ? (
             <>
-              <Link to="/orders">My Orders</Link>
-              {user.isAdmin && <Link to="/admin">Admin</Link>}
-              <span className="nav-user">Hi, {user.name.split(' ')[0]}</span>
+              <Link to="/orders">Đơn hàng của tôi</Link>
+              {user.isAdmin && <Link to="/admin">Quản trị</Link>}
+              <span className="nav-user">Chào, {user.name.split(' ')[0]}</span>
               <button type="button" className="btn btn-ghost btn-sm" onClick={handleLogout}>
-                Logout
+                Đăng xuất
               </button>
             </>
           ) : (
-            <Link to="/login">Sign In</Link>
+            <Link to="/login">Đăng nhập</Link>
           )}
           <Link to="/cart" className="cart-link">
-            Cart
+            Giỏ hàng
             {itemsCount > 0 && <span className="cart-badge">{itemsCount}</span>}
           </Link>
         </nav>

@@ -1,3 +1,4 @@
+import { totals } from '../../../shared/commerce.mjs';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,9 +10,7 @@ export default function CartPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const shipping = subtotal > 100 ? 0 : subtotal > 0 ? 10 : 0;
-  const tax = Number((subtotal * 0.1).toFixed(2));
-  const total = subtotal + shipping + tax;
+  const { shippingPrice: shipping, taxPrice: tax, totalPrice: total } = totals(subtotal);
 
   const checkoutHandler = () => {
     if (!user) {
@@ -24,10 +23,10 @@ export default function CartPage() {
   if (cartItems.length === 0) {
     return (
       <div className="page container cart-page">
-        <h1>Shopping Cart</h1>
-        <Message>Your cart is empty.</Message>
+        <h1>Giỏ hàng</h1>
+        <Message>Giỏ hàng của bạn đang trống.</Message>
         <Link to="/" className="btn btn-primary">
-          Go Shopping
+          Khám phá sản phẩm
         </Link>
       </div>
     );
@@ -35,7 +34,7 @@ export default function CartPage() {
 
   return (
     <div className="page container cart-page">
-      <h1>Shopping Cart</h1>
+      <h1>Giỏ hàng</h1>
       <div className="cart-layout">
         <div className="cart-items">
           {cartItems.map((item) => (
@@ -61,7 +60,7 @@ export default function CartPage() {
                 type="button"
                 className="btn btn-ghost btn-sm"
                 onClick={() => removeFromCart(item._id)}
-                aria-label="Remove"
+                aria-label="Xóa khỏi giỏ hàng"
               >
                 ✕
               </button>
@@ -70,25 +69,25 @@ export default function CartPage() {
         </div>
 
         <div className="cart-summary card">
-          <h2>Order Summary</h2>
+          <h2>Chi tiết thanh toán</h2>
           <div className="summary-row">
-            <span>Subtotal</span>
+            <span>Tiền sản phẩm</span>
             <span>{formatPrice(subtotal)}</span>
           </div>
           <div className="summary-row">
-            <span>Shipping</span>
-            <span>{shipping === 0 ? 'FREE' : formatPrice(shipping)}</span>
+            <span>Giao hàng</span>
+            <span>{shipping === 0 ? "Miễn phí" : formatPrice(shipping)}</span>
           </div>
           <div className="summary-row">
-            <span>Tax (10%)</span>
+            <span>Thuế (10%)</span>
             <span>{formatPrice(tax)}</span>
           </div>
           <div className="summary-row summary-total">
-            <span>Total</span>
+            <span>Tổng thanh toán</span>
             <span>{formatPrice(total)}</span>
           </div>
           <button type="button" className="btn btn-primary btn-block" onClick={checkoutHandler}>
-            Proceed to Checkout
+            Tiến hành đặt hàng
           </button>
         </div>
       </div>

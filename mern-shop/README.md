@@ -50,7 +50,6 @@ CLIENT_URL=http://localhost:5173
 VNPAY_TMN_CODE=your_sandbox_terminal
 VNPAY_HASH_SECRET=your_sandbox_secret
 VNPAY_RETURN_URL=http://localhost:5000/api/orders/vnpay/return
-VNPAY_USD_TO_VND_RATE=your_chosen_sandbox_rate
 ```
 
 ### 4. Seed the database
@@ -77,7 +76,7 @@ npm run dev
 ## VNPay sandbox setup
 
 See the [root README](../README.md#vnpay-sandbox-payments) and `backend/.env.example`
-for merchant credentials, USD-to-VND quote configuration, public HTTPS IPN, return URL,
+for merchant credentials, VND currency behavior, public HTTPS IPN, return URL,
 and replica-set requirements. The customer reviews the VND quote before redirecting
 to VNPay. A signed server IPN, not the browser return, confirms payment.
 

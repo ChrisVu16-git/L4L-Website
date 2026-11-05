@@ -5,16 +5,15 @@ export const SANDBOX_URL = 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
 export function paymentConfig() {
   const tmnCode = process.env.VNPAY_TMN_CODE;
   const secret = process.env.VNPAY_HASH_SECRET;
-  const rate = Number(process.env.VNPAY_USD_TO_VND_RATE);
   const returnUrl = process.env.VNPAY_RETURN_URL;
-  if (!tmnCode || !secret || !Number.isFinite(rate) || rate <= 0 || !returnUrl) {
-    const error = new Error('VNPay sandbox is not configured. Set the terminal code, hash secret, return URL and USD-to-VND sandbox rate.');
+  if (!tmnCode || !secret || !returnUrl) {
+    const error = new Error('VNPay sandbox is not configured. Set the terminal code, hash secret, return URL.');
     error.code = 'PAYMENTS_UNCONFIGURED';
     throw error;
   }
   const url = new URL(returnUrl);
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) throw new Error('VNPay return URL must use HTTPS outside localhost');
-  return { tmnCode, secret, rate, returnUrl };
+  return { tmnCode, secret, returnUrl };
 }
 const encode = value => encodeURIComponent(value).replace(/%20/g, '+');
 export function canonicalQuery(params) {
@@ -40,10 +39,9 @@ export function callbackParams(originalUrl) {
   }
   return params;
 }
-export function amountVnd(totalUsd, rate) {
-  const amount = Math.round(totalUsd * rate);
-  if (!Number.isFinite(totalUsd) || totalUsd <= 0 || !Number.isFinite(rate) || rate <= 0 || !Number.isSafeInteger(amount) || amount < 1 || amount * 100 > 999999999999) throw new Error('Order total is outside VNPay amount limits');
-  return amount;
+export function amountVnd(totalVnd) {
+  if (!Number.isSafeInteger(totalVnd) || totalVnd < 1 || totalVnd * 100 > 999999999999) throw new Error('Số tiền vượt giới hạn thanh toán VNPay.');
+  return totalVnd;
 }
 export const vietnamTime = date => new Date(date.getTime() + 7 * 3600000).toISOString().replace(/[-:T]/g, '').slice(0, 14);
 export function checkoutUrl(order, attempt, clientIp, config) {

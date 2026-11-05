@@ -17,7 +17,7 @@ export default function RegisterPage() {
   const submitHandler = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError("Mật khẩu nhập lại chưa khớp.");
       return;
     }
     setError('');
@@ -35,12 +35,12 @@ export default function RegisterPage() {
   return (
     <div className="page container auth-page">
       <div className="auth-card card">
-        <h1>Create Account</h1>
-        <p>Join the collector’s corner.</p>
+        <h1>Tạo tài khoản</h1>
+        <p>Tham gia cộng đồng yêu mô hình.</p>
         {error && <Message variant="error">{error}</Message>}
         <form onSubmit={submitHandler}>
           <label>
-            Name
+            Họ và tên
             <input
               type="text"
               autoComplete="name"
@@ -67,7 +67,7 @@ export default function RegisterPage() {
           </label>
           <datalist id="email-suggestions">{gmailSuggestion && <option value={gmailSuggestion} />}</datalist>
           <label>
-            Password
+            Mật khẩu
             <input
               type="password"
               required
@@ -80,7 +80,7 @@ export default function RegisterPage() {
             />
           </label>
           <label>
-            Confirm Password
+            Nhập lại mật khẩu
             <input
               type="password"
               required
@@ -90,11 +90,11 @@ export default function RegisterPage() {
             />
           </label>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Creating...' : 'Register'}
+            {loading ? "Đang tạo tài khoản…" : "Đăng ký"}
           </button>
         </form>
         <p className="auth-switch">
-          Already have an account? <Link to="/login">Sign in</Link>
+          Bạn đã có tài khoản? <Link to="/login">Đăng nhập</Link>
         </p>
       </div>
     </div>

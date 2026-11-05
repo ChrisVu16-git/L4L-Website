@@ -6,7 +6,7 @@ export default function ProductCard({ product }) {
     <Link to={`/product/${product._id}`} className="product-card">
       <div className="product-image-wrap">
         <img src={product.image} alt={product.name} loading="lazy" />
-        {product.countInStock === 0 && <span className="badge badge-sold">Sold Out</span>}
+        {product.countInStock === 0 && <span className="badge badge-sold">Hết hàng</span>}
       </div>
       <div className="product-info">
         <span className="product-category">{product.category}</span>

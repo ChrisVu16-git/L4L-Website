@@ -12,10 +12,18 @@ const orderSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     orderItems: [orderItemSchema],
+    currency: { type: String, enum: ['USD', 'VND'] },
+    status: { type: String, enum: ['placed','processing','shipping','delivered','cancelled'] },
+    trackingNumber: { type: String, default: '' },
+    adminNote: { type: String, default: '' },
+    statusHistory: [{ status: String, at: Date, by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } }],
     shippingAddress: {
+      recipientName: String,
+      phone: String,
+      ward: String,
       address: { type: String, required: true },
       city: { type: String, required: true },
-      postalCode: { type: String, required: true },
+      postalCode: { type: String, default: '' },
       country: { type: String, required: true },
     },
     paymentMethod: { type: String, required: true, default: 'vnpay' },
@@ -39,14 +47,14 @@ const orderSchema = new mongoose.Schema(
       _id: false,
       reference: { type: String, required: true },
       amountVnd: { type: Number, required: true },
-      usdToVndRate: { type: Number, required: true },
+      usdToVndRate: Number,
       createdAt: { type: Date, required: true },
       expiresAt: { type: Date, required: true },
       responseCode: String,
       transactionStatus: String,
     }],
   },
-  { timestamps: true }
+  { timestamps: true, optimisticConcurrency: true }
 );
 
 orderSchema.index({ 'vnpayAttempts.reference': 1 });

@@ -10,11 +10,11 @@ beforeEach(() => vi.resetAllMocks());
 afterEach(cleanup);
 const show = (Page, path = '/register') => render(<MemoryRouter initialEntries={[path]}><Routes><Route path={path} element={<Page />} /><Route path="/" element={<p>Shop home</p>} /></Routes></MemoryRouter>);
 function fillSignup() {
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Collector' } });
+  fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Collector' } });
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'collector@gmail.com' } });
-  fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'TestPassword123!' } });
-  fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'TestPassword123!' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Register' }));
+  fireEvent.change(screen.getByLabelText('Mật khẩu'), { target: { value: 'TestPassword123!' } });
+  fireEvent.change(screen.getByLabelText('Nhập lại mật khẩu'), { target: { value: 'TestPassword123!' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng ký' }));
 }
 test('signup has no email confirmation controls or confirmation copy', () => {
   show(RegisterPage);
@@ -38,7 +38,7 @@ test('existing unverified users can sign in without confirmation UI', async () =
   login.mockResolvedValue({ token: 'test-token', emailVerified: false });
   show(LoginPage, '/login');
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'collector@gmail.com' } });
-  fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'TestPassword123!' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+  fireEvent.change(screen.getByLabelText('Mật khẩu'), { target: { value: 'TestPassword123!' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
   expect(await screen.findByText('Shop home')).toBeTruthy();
 });

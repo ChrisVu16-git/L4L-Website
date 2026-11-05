@@ -28,8 +28,6 @@ services:
         sync: false
       - key: VNPAY_RETURN_URL
         sync: false
-      - key: VNPAY_USD_TO_VND_RATE
-        sync: false
       - key: TRUST_PROXY_HOPS
         sync: false
 

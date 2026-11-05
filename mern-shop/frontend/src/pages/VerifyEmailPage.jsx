@@ -17,11 +17,11 @@ export default function VerifyEmailPage() {
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
   return <div className="page container auth-page"><div className="auth-card card">
-    <h1>Confirm your email</h1>
-    <p>One last step before your next shelf favourite.</p>
+    <h1>Xác nhận email</h1>
+    <p>Chỉ còn một bước để hoàn tất.</p>
     {notice && <div role="status"><Message variant="success">{notice}</Message></div>}
     {error && <Message variant="error">{error}</Message>}
-    {!notice && <button className="btn btn-primary btn-block" disabled={loading || !token} onClick={confirm}>{loading ? 'Confirming…' : 'Confirm email'}</button>}
-    <p><Link to="/login">Sign in</Link> · <Link to="/register">Request a new confirmation</Link></p>
+    {!notice && <button className="btn btn-primary btn-block" disabled={loading || !token} onClick={confirm}>{loading ? 'Confirming…' : "Xác nhận email"}</button>}
+    <p><Link to="/login">Đăng nhập</Link> · <Link to="/register">Yêu cầu xác nhận mới</Link></p>
   </div></div>;
 }

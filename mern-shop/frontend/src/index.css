@@ -792,3 +792,9 @@ textarea.input {
 a:focus-visible, button:focus-visible { outline: 3px solid var(--primary); outline-offset: 4px; }
 @media (max-width: 640px) { .figure-hero-inner { grid-template-columns: 1fr; gap: 2rem; } .figure-hero { padding: 2rem 0; } .collector-display { min-height: 260px; } .collector-display img { height: 200px; } .collection-heading { align-items: start; flex-direction: column; } .header-inner { height: auto; min-height: 64px; flex-wrap: wrap; padding-top: .75rem; padding-bottom: .75rem; gap: .75rem; } .nav { flex-wrap: wrap; } }
 @media (prefers-reduced-motion: reduce) { .product-image-wrap img { transition: none; } }
+
+.field-error { display: block; color: #a62819; font-size: .85rem; margin-top: .25rem; }
+.order-summary-counts { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+.status-badge { display: inline-block; border-radius: 999px; padding: .3rem .7rem; font-weight: 600; font-size: .85rem; background: #e9ecdf; color: #344324; white-space: nowrap; }
+.status-shipping { background: #e1edff; color: #174b8b; }.status-delivered { background: #dff3e8; color: #185a39; }.status-cancelled { background: #fce5e1; color: #982c1b; }
+.order-timeline { display: flex; flex-wrap: wrap; gap: .6rem; padding: 1rem 0; list-style: none; }.order-timeline li { padding: .5rem .8rem; border: 1px solid var(--border); border-radius: 8px; }.order-timeline .active { border-color: var(--primary); font-weight: 700; }

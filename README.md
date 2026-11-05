@@ -259,7 +259,6 @@ at [VNPay developer registration](https://sandbox.vnpayment.vn/devreg/) to obtai
 VNPAY_TMN_CODE=your_sandbox_terminal_code
 VNPAY_HASH_SECRET=your_sandbox_hash_secret
 VNPAY_RETURN_URL=https://l4l-website.onrender.com/api/orders/vnpay/return
-VNPAY_USD_TO_VND_RATE=your_chosen_sandbox_conversion_rate
 CLIENT_URL=https://l4-l-website.vercel.app
 TRUST_PROXY_HOPS=0
 ```
@@ -279,22 +278,52 @@ The Stripe SDK and active webhook route have been removed. Historical paid order
 and their stored provider/session data are retained; unpaid orders can start VNPay
 checkout. Do not switch a real merchant with outstanding payments without reconciliation.
 
-### USD catalogue and VND payment quotes
+### VND prices and legacy records
 
-Catalogue and existing order prices remain USD. VNPay supports VND, so configure an
-explicit positive `VNPAY_USD_TO_VND_RATE` for sandbox quoting. There is no default
-exchange rate and no live FX lookup. For example **only in tests**, a rate of 25,000
-makes a USD 37.50 total become VND 937,500. This is an illustrative fixture, not a
-current exchange-rate claim. Whole-VND rounding is applied once; VNPay receives the
-VND amount multiplied by 100. Amounts outside VNPay's 12-digit protocol limit fail.
+The application interface is Vietnamese and prices are displayed as whole Vietnamese
+dong. New product prices and orders explicitly store `currency=VND`. Product create
+and edit APIs accept whole-VND prices. Cart/order summaries and VNPay use those VND
+amounts directly; no second USD conversion or live exchange-rate lookup occurs.
+`VNPAY_USD_TO_VND_RATE` is no longer required.
 
-From an unpaid order choose **Review VNPay payment**. The server saves a 15-minute
-quote/transaction reference, using the order's full total (items, tax and shipping).
-The customer sees the VND amount, conversion rate and expiry before choosing
-**Continue to VNPay sandbox**. Concurrent checkout requests reuse one stored quote.
-Changing the configured rate does not change an existing unexpired quote.
-Older attempts are retained for delayed IPNs. Failed IPNs allow a fresh attempt.
-There is no stock reservation while the customer is at the payment gateway.
+Existing records without a currency (or marked USD) use the user-approved fixed
+conversion **1 USD = 25,000 VND**. Product/order read responses convert these values
+without rewriting historical database amounts. Editing a legacy product converts it
+to VND once and retains its old price in `legacyPriceUsd`; editing an order's shipping
+or status does not rewrite its historical prices. Existing browser carts are converted
+once on load and stored with a VND currency marker. Do not manually relabel old USD
+records as VND without converting their amounts. This compatibility rule is not a
+current market exchange rate.
+
+Shipping and demo tax preserve the previous configuration after conversion: shipping
+is 250,000 VND, waived for an items subtotal above 2,500,000 VND; estimated tax is 10%,
+rounded to whole VND. These are application demo settings, not a statement of tax law.
+
+VNPay receives VND multiplied by 100. Customers review the amount and 15-minute
+expiry before leaving the order page. Concurrent requests reuse the saved quote.
+Old attempts remain valid for signature/amount verification of delayed IPNs.
+
+### Shipping validation and order management
+
+New orders validate recipient name, phone, street address, ward, province/city and
+country in both browser and API. Postal code is optional. Vietnamese phone numbers
+are normalized, including `+84` input. Validation checks format/completeness; it does
+not geocode an address or prove that a recipient can receive delivery there.
+
+Admins can filter orders by status, edit recipient/contact/address before shipping,
+add a tracking number and internal note, and progress orders through **Đã đặt hàng →
+Đang xử lý → Đang giao hàng → Đã giao hàng**. Customers see the same status, timeline
+and tracking number on their order screens. Internal notes are excluded from customer
+responses. Paid state remains controlled by VNPay IPN, not the admin editor.
+
+Admin updates require the current `version` and reject stale writes with 409. Shipping
+requires a paid order and tracking number. Backward status transitions are rejected.
+Unpaid placed/processing orders can be cancelled. Paid orders require manual refund
+reconciliation and cannot be cancelled through this editor. Cancelled orders cannot
+start checkout; a late successful IPN returns a reconciliation error rather than
+silently fulfilling a cancelled order. Historical orders infer delivered/placed status
+from their existing delivery flag until first updated. The legacy deliver endpoint
+uses the same payment, transition and version checks.
 
 ### Return URL and IPN
 
