@@ -47,18 +47,7 @@ jobs:
           cache-dependency-path: mern-shop/backend/package-lock.json
 
       - name: Start disposable MongoDB replica set
-        run: |
-          docker run -d --name ci-mongodb -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
-          for attempt in {1..30}; do
-            if docker exec ci-mongodb mongosh --quiet --eval 'db.adminCommand({ping:1})'; then break; fi
-            sleep 2
-          done
-          docker exec ci-mongodb mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
-          for attempt in {1..30}; do
-            if docker exec ci-mongodb mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) quit(1)'; then exit 0; fi
-            sleep 2
-          done
-          exit 1
+        run: docker compose -f ../docker-compose.yml up -d --wait --wait-timeout 90
 
       - name: Install backend dependencies
         run: npm ci
@@ -66,10 +55,32 @@ jobs:
       - name: Run backend tests
         run: npm test
 
+      - name: Verify seeded API starts from local setup
+        env:
+          MONGODB_URI: mongodb://127.0.0.1:27017/mern-shop-smoke?replicaSet=rs0&directConnection=true
+        run: |
+          npm run seed
+          npm start > /tmp/l4l-api-smoke.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:5000/api/health; then break; fi
+            sleep 1
+          done
+          node --input-type=module - <<'JS'
+          import assert from 'node:assert/strict';
+          const response = await fetch('http://localhost:5000/api/products');
+          assert.equal(response.status, 200);
+          const products = await response.json();
+          assert.ok(Array.isArray(products) && products.length > 0);
+          assert.equal(products[0].currency, 'VND');
+          console.log('Seeded API startup and product list passed');
+          JS
+
       - name: MongoDB logs on failure
         if: failure()
-        run: docker logs ci-mongodb
+        run: docker compose -f ../docker-compose.yml logs mongodb
 
       - name: Stop test database
         if: always()
-        run: docker rm -f ci-mongodb
+        run: docker compose -f ../docker-compose.yml down --volumes
