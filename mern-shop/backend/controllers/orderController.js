@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
-import { getSandboxStripe, checkoutParams, validPaidSession } from '../utils/payments.js';
+import { randomBytes } from 'node:crypto';
+import { paymentConfig, amountVnd, checkoutUrl, callbackParams, verifyPayment, matchesAttempt, paymentSucceeded } from '../utils/payments.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 
@@ -8,7 +9,7 @@ import Product from '../models/Product.js';
 export const addOrderItems = async (req, res) => {
   try {
   const { orderItems, shippingAddress } = req.body;
-  const paymentMethod = 'stripe';
+  const paymentMethod = 'vnpay';
   if (!req.user.emailVerified) return res.status(403).json({ message: 'Confirm your email before checkout.' });
   if (!shippingAddress || ['address', 'city', 'postalCode', 'country'].some(key => typeof shippingAddress[key] !== 'string' || !shippingAddress[key].trim() || shippingAddress[key].length > 200)) {
     return res.status(400).json({ message: 'Enter a complete shipping address.' });
@@ -96,62 +97,96 @@ export const updateOrderToDelivered = async (req, res) => {
 export const createCheckoutSession = async (req, res, next) => {
   try {
     if (!req.user.emailVerified) return res.status(403).json({ message: 'Confirm your email before checkout.' });
-    const stripe = getSandboxStripe();
-    const order = await Order.findById(req.params.id);
+    const config = paymentConfig();
+    let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Not authorized' });
     if (order.isPaid) return res.status(400).json({ message: 'Order already paid' });
-    if (order.stripeSessionId) {
-      const existing = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
-      if (existing.status === 'open') return res.json({ url: existing.url, sessionId: existing.id });
-      if (existing.status === 'complete') return res.status(409).json({ message: 'Payment is being confirmed. Refresh the order shortly.' });
-    }
     for (const item of order.orderItems) {
       const product = await Product.findById(item.product);
       if (!product || product.countInStock < item.qty) return res.status(409).json({ message: 'An item is no longer in stock.' });
     }
-    const session = await stripe.checkout.sessions.create(checkoutParams(order, req.user.email), {
-      idempotencyKey: `order-${order._id}-${order.stripeSessionId || 'initial'}`,
-    });
-    order.stripeSessionId = session.id;
-    await order.save();
-    res.json({ url: session.url, sessionId: session.id });
+    const now = new Date();
+    if (!order.vnpayExpiresAt || order.vnpayExpiresAt <= now) {
+      const attempt = {
+        reference: randomBytes(16).toString('hex'),
+        amountVnd: amountVnd(order.totalPrice, config.rate), usdToVndRate: config.rate,
+        createdAt: now, expiresAt: new Date(now.getTime() + 15 * 60000),
+      };
+      // Only one concurrent request may create the current attempt. Old attempts
+      // stay available for delayed signed notifications and reconciliation.
+      const updated = await Order.findOneAndUpdate({ _id: order._id, isPaid: false,
+        $or: [{ vnpayExpiresAt: { $lte: now } }, { vnpayExpiresAt: { $exists: false } }] },
+        { $push: { vnpayAttempts: attempt }, $set: { vnpayExpiresAt: attempt.expiresAt, paymentMethod: 'vnpay' } }, { new: true });
+      order = updated || await Order.findById(order._id);
+    }
+    if (!order || order.isPaid) return res.status(409).json({ message: 'Order payment status changed. Refresh the order.' });
+    const attempt = order.vnpayAttempts.at(-1);
+    if (!attempt) return res.status(409).json({ message: 'Could not prepare checkout. Try again.' });
+    res.json({ url: checkoutUrl(order, attempt, req.ip, config), amountVnd: attempt.amountVnd,
+      usdToVndRate: attempt.usdToVndRate, expiresAt: attempt.expiresAt });
   } catch (err) {
     if (err.code === 'PAYMENTS_UNCONFIGURED') return res.status(503).json({ message: err.message });
     next(err);
   }
 };
 
-export const stripeWebhook = async (req, res) => {
-  let event;
+const readCallback = req => {
+  const config = paymentConfig();
+  const params = callbackParams(req.originalUrl);
+  if (!verifyPayment(params, config.secret) || params.vnp_TmnCode !== config.tmnCode) throw new Error('Invalid VNPay signature or merchant');
+  return { config, params };
+};
+
+export const vnpayReturn = async (req, res) => {
   try {
-    const stripe = getSandboxStripe();
-    if (!process.env.STRIPE_WEBHOOK_SECRET) return res.status(503).json({ message: 'Sandbox webhook is not configured.' });
-    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
-  } catch { return res.status(400).json({ message: 'Invalid sandbox webhook signature or configuration.' }); }
-  if (event.livemode || event.type !== 'checkout.session.completed') return res.json({ received: true });
-  const session = event.data.object;
-  if (session.payment_status !== 'paid' || !mongoose.isValidObjectId(session.metadata?.orderId)) return res.json({ received: true });
+    const { config, params } = readCallback(req);
+    const order = await Order.findOne({ 'vnpayAttempts.reference': params.vnp_TxnRef });
+    const attempt = order?.vnpayAttempts.find(a => a.reference === params.vnp_TxnRef);
+    if (!attempt || !matchesAttempt(params, attempt, config)) return res.status(400).json({ message: 'Invalid VNPay payment return.' });
+    const url = new URL(`/order/${order._id}`, process.env.CLIENT_URL || 'http://localhost:5173');
+    url.searchParams.set('payment', paymentSucceeded(params) ? 'pending' : 'failed');
+    // Browser return never mutates stock or paid status; only signed IPN does.
+    res.redirect(303, url.toString());
+  } catch { res.status(400).json({ message: 'Invalid VNPay payment return.' }); }
+};
+
+export const vnpayIpn = async (req, res) => {
+  const reply = (RspCode, Message) => res.status(200).json({ RspCode, Message });
+  let config, params;
+  try { ({ config, params } = readCallback(req)); }
+  catch { return reply('97', 'Invalid signature or merchant'); }
   try {
-    // The order update and stock decrements commit together. Retries and duplicate
-    // deliveries observe isPaid and cannot decrement stock twice.
-    await mongoose.connection.transaction(async dbSession => {
-      const order = await Order.findById(session.metadata.orderId).session(dbSession);
-      if (!order || order.isPaid) return;
-      if (!validPaidSession(session, order)) throw new Error('Payment does not match this order');
+    const result = await mongoose.connection.transaction(async dbSession => {
+      const order = await Order.findOne({ 'vnpayAttempts.reference': params.vnp_TxnRef }).session(dbSession);
+      if (!order) return ['01', 'Order not found'];
+      const attempt = order.vnpayAttempts.find(a => a.reference === params.vnp_TxnRef);
+      if (!matchesAttempt(params, attempt, config)) return ['04', 'Invalid amount'];
+      if (order.isPaid) return ['02', 'Order already confirmed'];
+      if (!paymentSucceeded(params)) {
+        if (params.vnp_ResponseCode === '00' && params.vnp_TransactionStatus === '00') return ['99', 'Invalid transaction number'];
+        if (!/^[0-9]{2}$/.test(params.vnp_ResponseCode || '') || !/^[0-9]{2}$/.test(params.vnp_TransactionStatus || '')) return ['99', 'Invalid payment status'];
+        attempt.responseCode = params.vnp_ResponseCode;
+        attempt.transactionStatus = params.vnp_TransactionStatus;
+        if (order.vnpayAttempts.at(-1).reference === attempt.reference) order.vnpayExpiresAt = new Date();
+        await order.save({ session: dbSession });
+        return ['00', 'Unsuccessful payment acknowledged'];
+      }
       for (const item of order.orderItems) {
-        const result = await Product.updateOne({ _id: item.product, countInStock: { $gte: item.qty } }, { $inc: { countInStock: -item.qty } }, { session: dbSession });
-        if (result.modifiedCount !== 1) throw new Error('Paid order needs stock reconciliation');
+        const update = await Product.updateOne({ _id: item.product, countInStock: { $gte: item.qty } }, { $inc: { countInStock: -item.qty } }, { session: dbSession });
+        if (update.modifiedCount !== 1) throw new Error('Paid order needs stock reconciliation');
       }
       order.isPaid = true;
       order.paidAt = new Date();
-      order.paymentResult = { id: session.payment_intent, status: session.payment_status, email_address: session.customer_details?.email };
+      order.paymentMethod = 'vnpay';
+      order.paymentResult = { id: params.vnp_TransactionNo, status: '00' };
       await order.save({ session: dbSession });
+      return ['00', 'Confirm Success'];
     });
-    res.json({ received: true });
+    return reply(...result);
   } catch (err) {
-    console.error('Sandbox payment fulfillment failed:', err.message);
-    res.status(500).json({ message: 'Payment fulfillment failed; retry webhook after resolving the issue.' });
+    console.error('VNPay fulfillment failed:', err.message);
+    return reply('99', 'Fulfillment failed; reconcile and retry');
   }
 };
 

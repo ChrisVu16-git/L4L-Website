@@ -8,6 +8,8 @@ import {
   updateOrderToDelivered,
   createCheckoutSession,
   markOrderPaid,
+  vnpayIpn,
+  vnpayReturn,
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/auth.js';
 
@@ -17,6 +19,9 @@ router.param('id', (req, res, next, id) => {
   next();
 });
 const safe = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+router.get('/vnpay/ipn', safe(vnpayIpn));
+router.get('/vnpay/return', safe(vnpayReturn));
 
 router.post('/', protect, safe(addOrderItems));
 router.get('/myorders', protect, safe(getMyOrders));

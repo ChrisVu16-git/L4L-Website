@@ -35,7 +35,7 @@ export default function PlaceOrderPage() {
             qty: item.qty,
           })),
           shippingAddress,
-          paymentMethod: 'stripe',
+          paymentMethod: 'vnpay',
         }),
       });
 
@@ -64,7 +64,7 @@ export default function PlaceOrderPage() {
             {shippingAddress.country}
           </p>
           <h2>Payment</h2>
-          <p>Stripe sandbox (test card)</p>
+          <p>VNPay sandbox (VND amount reviewed before payment)</p>
           <h2>Items</h2>
           {cartItems.map((item) => (
             <div key={item._id} className="summary-row">
