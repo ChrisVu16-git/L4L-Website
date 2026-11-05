@@ -183,8 +183,12 @@ export const vnpayReturn = async (req, res) => {
     const order = await Order.findOne({ 'vnpayAttempts.reference': params.vnp_TxnRef });
     const attempt = order?.vnpayAttempts.find(a => a.reference === params.vnp_TxnRef);
     if (!attempt || !matchesAttempt(params, attempt, config)) return res.status(400).json({ message: 'Invalid VNPay payment return.' });
-    const url = new URL(`/order/${order._id}`, process.env.CLIENT_URL || 'http://localhost:5173');
-    url.searchParams.set('payment', paymentSucceeded(params) ? 'pending' : 'failed');
+    const cancelled = params.vnp_ResponseCode === '24';
+    // Derive the destination from the stored order, never a callback URL.
+    const productId = order.orderItems[0]?.product?.toString();
+    const destination = cancelled ? (productId ? `/product/${productId}` : '/') : `/order/${order._id}`;
+    const url = new URL(destination, process.env.CLIENT_URL || 'http://localhost:5173');
+    url.searchParams.set('payment', cancelled ? 'cancelled' : paymentSucceeded(params) ? 'pending' : 'failed');
     // Browser return never mutates stock or paid status; only signed IPN does.
     res.redirect(303, url.toString());
   } catch { res.status(400).json({ message: 'Invalid VNPay payment return.' }); }

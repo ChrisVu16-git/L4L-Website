@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch, formatPrice } from '../utils/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,7 @@ import Loader, { Message, Rating } from '../components/UI';
 
 export default function ProductPage() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { user } = useAuth();
@@ -51,6 +52,7 @@ export default function ProductPage() {
 
   return (
     <div className="page container product-page">
+      {params.get('payment') === 'cancelled' && <div role="status"><Message>Bạn đã hủy thanh toán. Đơn hàng chưa được thanh toán; bạn có thể tiếp tục xem sản phẩm.</Message></div>}
       <div className="product-detail">
         <img src={product.image} alt={product.name} className="product-detail-image" />
         <div className="product-detail-info">

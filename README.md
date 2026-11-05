@@ -7,7 +7,7 @@ A full-stack e-commerce web application built with React and Node.js. This proje
 **Products API:** [Browse product data](https://l4l-website.onrender.com/api/products)  
 **Source code:** [ChrisVu16-git/L4L-Website](https://github.com/ChrisVu16-git/L4L-Website)
 
-> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. Sandbox payments require backend configuration. Email confirmation is temporarily disabled. They are not verified against a real VNPay sandbox or SMTP sender yet. Do not enter real payment details.
+> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. VNPay sandbox is configured on Render (reported by the project owner). Email confirmation is temporarily disabled. The external VNPay flow has not been independently verified in this change. Do not enter real payment details.
 
 ## Features
 
@@ -286,6 +286,17 @@ If manually inserted legacy user phone values already conflict, resolve those va
 before building the unique index; do not disable the index to bypass conflicts.
 
 ## VNPay sandbox payments
+
+Use the sandbox-only test card supplied by the project owner, or the current
+[official VNPay sandbox guide](https://sandbox.vnpayment.vn/apis/docs/thanh-toan-pay/pay.html).
+Do not use real card details.
+
+A signed VNPay cancellation (`vnp_ResponseCode=24`) returns to the first product
+in the stored order; multi-product orders use that first product, with the catalog
+as a fallback for an empty order. Other failures stay on the receipt so payment
+can be retried. Cancelling payment does not cancel the order, change stock or mark
+it paid. The browser return continues to validate merchant, signature and amount.
+No additional Render secrets are needed for this redirect.
 
 VNPay 2.1.0 replaces the previous payment integration. Register a sandbox merchant
 at [VNPay developer registration](https://sandbox.vnpayment.vn/devreg/) to obtain
