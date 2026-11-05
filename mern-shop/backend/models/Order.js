@@ -10,8 +10,10 @@ const orderItemSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     orderItems: [orderItemSchema],
+    isGuest: { type: Boolean, default: false },
+    guestTokenHash: { type: String, select: false },
     currency: { type: String, enum: ['USD', 'VND'] },
     status: { type: String, enum: ['placed','processing','shipping','delivered','cancelled'] },
     trackingNumber: { type: String, default: '' },

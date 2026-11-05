@@ -1,10 +1,12 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { normalizePhone, validAccountPhone } from '../utils/commerce-rules.js';
 
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    phone: { type: String, set: normalizePhone, validate: { validator: value => value === undefined || validAccountPhone(value), message: 'Số điện thoại không hợp lệ.' } },
     password: { type: String, required: true, minlength: 6 },
     emailVerified: { type: Boolean, default: false },
     verificationHash: { type: String, select: false },
@@ -14,6 +16,8 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+userSchema.index({ phone: 1 }, { unique: true, partialFilterExpression: { phone: { $type: 'string' } } });
 
 userSchema.pre('save', async function hashPassword() {
   if (!this.isModified('password')) return;

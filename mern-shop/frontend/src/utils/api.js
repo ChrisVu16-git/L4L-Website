@@ -1,3 +1,4 @@
+import { guestTokenFor } from './guestOrders';
 import { toVnd } from './commerce-rules';
 import { userMessage } from './messages';
 
@@ -7,7 +8,10 @@ export async function apiFetch(endpoint, options = {}) {
   const userInfo = localStorage.getItem('userInfo');
   const token = userInfo ? JSON.parse(userInfo).token : null;
 
+  const orderId = endpoint.match(/^\/orders\/([a-f0-9]{24})(?:\/(?:pay|checkout))?$/)?.[1];
+  const guestToken = orderId ? guestTokenFor(orderId) : undefined;
   const headers = {
+    ...(guestToken && { 'X-Guest-Order-Token': guestToken }),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };

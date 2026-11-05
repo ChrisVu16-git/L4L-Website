@@ -1,3 +1,4 @@
+import { newGuestAccess, canAccessOrder } from '../utils/guestAccess.js';
 import { orderView, productView } from '../utils/commerce.js';
 import { totals, toVnd, validateShipping, orderStatus } from '../utils/commerce-rules.js';
 import mongoose from 'mongoose';
@@ -44,33 +45,36 @@ export const addOrderItems = async (req, res) => {
   const { shippingPrice, taxPrice, totalPrice } = totals(itemsPrice);
   if (!Number.isSafeInteger(totalPrice) || totalPrice < 1 || totalPrice * 100 > 999999999999) return res.status(400).json({ message: 'Tổng tiền vượt giới hạn thanh toán VNPay.' });
 
+  const guestAccess = req.user ? null : newGuestAccess();
   const order = await Order.create({
-    user: req.user._id,
+    user: req.user?._id,
+    isGuest: !req.user,
+    guestTokenHash: guestAccess?.hash,
     orderItems: itemsFromDb,
     shippingAddress,
     paymentMethod,
     currency: 'VND',
     status: 'placed',
-    statusHistory: [{ status: 'placed', at: new Date(), by: req.user._id }],
+    statusHistory: [{ status: 'placed', at: new Date(), by: req.user?._id }],
     itemsPrice,
     shippingPrice,
     taxPrice,
     totalPrice,
   });
 
-  res.status(201).json(orderView(order));
+  res.status(201).json({ ...orderView(order), ...(guestAccess ? { guestAccessToken: guestAccess.token } : {}) });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
 export const getOrderById = async (req, res) => {
-  const order = await Order.findById(req.params.id).populate('user', 'name email');
+  const order = await Order.findById(req.params.id).select('+guestTokenHash').populate('user', 'name email');
   if (order) {
-    if (req.user.isAdmin || order.user?._id?.toString() === req.user._id.toString()) {
-      return res.json(orderView(order, req.user.isAdmin));
+    if (canAccessOrder(req, order)) {
+      return res.json(orderView(order, Boolean(req.user?.isAdmin)));
     }
-    return res.status(403).json({ message: 'Not authorized' });
+    return res.status(403).json({ message: 'Bạn cần đăng nhập hoặc nhập mã tra cứu riêng của đơn hàng.', code: 'ORDER_ACCESS_REQUIRED' });
   }
   res.status(404).json({ message: 'Order not found' });
 };
@@ -132,9 +136,9 @@ export const updateOrderToDelivered = (req, res, next) => {
 export const createCheckoutSession = async (req, res, next) => {
   try {
     const config = paymentConfig();
-    let order = await Order.findById(req.params.id);
+    let order = await Order.findById(req.params.id).select('+guestTokenHash');
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Not authorized' });
+    if (!canAccessOrder(req, order)) return res.status(403).json({ message: 'Bạn cần đăng nhập hoặc nhập mã tra cứu riêng của đơn hàng.', code: 'ORDER_ACCESS_REQUIRED' });
     if (orderStatus(order) === 'cancelled') return res.status(409).json({ message: 'Đơn hàng đã hủy, không thể thanh toán.' });
     if (order.isPaid) return res.status(400).json({ message: 'Order already paid' });
     for (const item of order.orderItems) {
@@ -227,13 +231,13 @@ export const vnpayIpn = async (req, res) => {
 };
 
 export const markOrderPaid = async (req, res) => {
-  const order = await Order.findById(req.params.id);
+  const order = await Order.findById(req.params.id).select('+guestTokenHash');
   if (!order) {
     return res.status(404).json({ message: 'Order not found' });
   }
 
-  if (order.user.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-    return res.status(403).json({ message: 'Not authorized' });
+  if (!canAccessOrder(req, order)) {
+    return res.status(403).json({ message: 'Bạn cần đăng nhập hoặc nhập mã tra cứu riêng của đơn hàng.', code: 'ORDER_ACCESS_REQUIRED' });
   }
 
   res.json({

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toVnd, totals, validateShipping } from '../utils/commerce-rules.js';
+import { toVnd, totals, validateShipping, normalizePhone, validAccountPhone } from '../utils/commerce-rules.js';
 import { productView, orderView } from '../utils/commerce.js';
 const address = { recipientName:'Nguyễn Văn An', phone:'+84 912 345 678', address:'12 Nguyễn Huệ', ward:'Phường Sài Gòn', city:'TP. Hồ Chí Minh', country:'VN', postalCode:'' };
 test('legacy prices convert exactly once and VND records retain their numeric value', () => {
@@ -19,4 +19,9 @@ test('shipping normalizes Vietnamese phone numbers and rejects blank/incomplete 
     assert.ok(Object.keys(validateShipping({...address,...invalid}).errors).length);
   }
   assert.ok(Object.keys(validateShipping(null).errors).length);
+});
+
+test('phone aliases normalize to the same account identity',()=>{
+  for(const phone of ['0912345678','+84 912 345 678','0084912345678','84912345678']){assert.equal(normalizePhone(phone),'0912345678');assert.equal(validAccountPhone(phone),true);}
+  for(const phone of ['123','09123abc78',null,1234567890])assert.equal(validAccountPhone(phone),false);
 });

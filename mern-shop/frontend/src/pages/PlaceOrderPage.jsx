@@ -1,3 +1,4 @@
+import { saveGuestAccess } from '../utils/guestOrders';
 import { totals, validateShipping } from '../utils/commerce-rules';
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
@@ -40,6 +41,7 @@ export default function PlaceOrderPage() {
         }),
       });
 
+      if (order.guestAccessToken) saveGuestAccess(order._id, order.guestAccessToken);
       clearCart();
       localStorage.removeItem('shippingAddress');
       navigate(`/order/${order._id}`);

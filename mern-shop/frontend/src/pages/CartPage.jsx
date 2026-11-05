@@ -1,24 +1,16 @@
 import { totals } from '../utils/commerce-rules';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../utils/api';
 import { Message } from '../components/UI';
 
 export default function CartPage() {
   const { cartItems, removeFromCart, updateQty, subtotal } = useCart();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const { shippingPrice: shipping, taxPrice: tax, totalPrice: total } = totals(subtotal);
 
-  const checkoutHandler = () => {
-    if (!user) {
-      navigate('/login?redirect=shipping');
-    } else {
-      navigate('/shipping');
-    }
-  };
+  const checkoutHandler = () => navigate('/shipping');
 
   if (cartItems.length === 0) {
     return (

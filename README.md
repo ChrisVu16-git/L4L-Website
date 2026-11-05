@@ -249,6 +249,42 @@ re-enablement. Before restoring confirmation, configure a sender on Render and
 restore the coordinated registration/login/checkout checks and frontend flow.
 The current version does not need `RESEND_API_KEY`, `MAIL_FROM` or SMTP credentials.
 
+## Guest checkout and account phone numbers
+
+Visitors can continue from the cart through shipping, order placement and VNPay
+sandbox payment without logging in. Shipping still requires a valid recipient name,
+phone and complete address. Guest checkout does not create an account or associate
+an order with an existing account just because a phone number matches.
+
+Each guest order receives a cryptographically random private access code once at
+creation. Only its SHA-256 hash is stored in MongoDB. The browser retains the code
+for that order and sends it via `X-Guest-Order-Token`, never the URL. The receipt
+shows a backup code under **Lưu mã tra cứu đơn hàng**. Save both its URL and code;
+on another device enter the code to reopen it. Without the code, a phone number
+or order ID alone cannot reveal the address, payment status or checkout link.
+Admins can manage guest orders normally. Guest orders are not included in an
+account's order history and are not automatically claimed when someone registers.
+
+Guest order creation/checkout is rate-limited. Invalid supplied bearer tokens are
+rejected rather than silently treated as anonymous. Admin mutations and account
+order lists still require authentication. VNPay's signed return/IPN and stock
+transaction rules apply equally to guest orders. Existing email confirmation remains
+disabled. Phone validation checks format only; SMS/OTP ownership verification is
+not implemented.
+
+New accounts require a Vietnamese mobile phone number. Common input forms such as
+`0912345678`, `+84 912 345 678` and `0084912345678` normalize to the same number.
+**Tài khoản** lets users update their name/phone; a phone already used by another
+account is rejected. A partial unique MongoDB index enforces uniqueness even under
+concurrent registrations/updates. Existing accounts without a phone remain usable
+and can add one later; no shared placeholder phone is assigned. Shipping phone
+numbers are order contacts and do not change or reserve account phone numbers.
+The same guest can place multiple orders with the same delivery contact number.
+
+The application waits for the user indexes before registration/profile phone writes.
+If manually inserted legacy user phone values already conflict, resolve those values
+before building the unique index; do not disable the index to bypass conflicts.
+
 ## VNPay sandbox payments
 
 VNPay 2.1.0 replaces the previous payment integration. Register a sandbox merchant

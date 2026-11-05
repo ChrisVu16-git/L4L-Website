@@ -24,6 +24,7 @@ export default function Header() {
           <Link to="/">Cửa hàng</Link>
           {user ? (
             <>
+              <Link to="/profile">Tài khoản</Link>
               <Link to="/orders">Đơn hàng của tôi</Link>
               {user.isAdmin && <Link to="/admin">Quản trị</Link>}
               <span className="nav-user">Chào, {user.name.split(' ')[0]}</span>

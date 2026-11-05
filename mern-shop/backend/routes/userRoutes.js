@@ -6,6 +6,7 @@ import {
   resendVerification,
   loginUser,
   getUserProfile,
+  updateUserProfile,
   getUsers,
 } from '../controllers/userController.js';
 import { protect, admin } from '../middleware/auth.js';
@@ -18,6 +19,7 @@ router.post('/verify-email', authLimit, verifyEmail);
 router.post('/resend-verification', authLimit, resendVerification);
 router.post('/login', authLimit, loginUser);
 router.get('/profile', protect, getUserProfile);
+router.put('/profile', protect, authLimit, updateUserProfile);
 router.get('/', protect, admin, getUsers);
 
 export default router;

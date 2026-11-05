@@ -1,4 +1,5 @@
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import {
   addOrderItems,
@@ -12,7 +13,7 @@ import {
   vnpayIpn,
   vnpayReturn,
 } from '../controllers/orderController.js';
-import { protect, admin } from '../middleware/auth.js';
+import { protect, admin, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 router.param('id', (req, res, next, id) => {
@@ -24,12 +25,13 @@ const safe = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch
 router.get('/vnpay/ipn', safe(vnpayIpn));
 router.get('/vnpay/return', safe(vnpayReturn));
 
-router.post('/', protect, safe(addOrderItems));
+const checkoutLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false });
+router.post('/', checkoutLimit, optionalAuth, safe(addOrderItems));
 router.get('/myorders', protect, safe(getMyOrders));
 router.get('/', protect, admin, safe(getOrders));
-router.get('/:id', protect, safe(getOrderById));
-router.get('/:id/pay', protect, safe(markOrderPaid));
-router.post('/:id/checkout', protect, safe(createCheckoutSession));
+router.get('/:id', optionalAuth, safe(getOrderById));
+router.get('/:id/pay', optionalAuth, safe(markOrderPaid));
+router.post('/:id/checkout', checkoutLimit, optionalAuth, safe(createCheckoutSession));
 router.put('/:id', protect, admin, safe(updateOrder));
 router.put('/:id/deliver', protect, admin, safe(updateOrderToDelivered));
 

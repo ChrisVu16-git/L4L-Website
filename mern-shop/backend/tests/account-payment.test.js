@@ -35,7 +35,7 @@ after(async () => {
 });
 
 test('signup and login work without mail credentials or confirmed email', async () => {
-  const registered = await request(app).post('/api/users/register').send({ name: 'Collector', email: email.toUpperCase(), password });
+  const registered = await request(app).post('/api/users/register').send({ name: 'Collector', email: email.toUpperCase(), password, phone: '0912345678' });
   assert.equal(registered.status, 201);
   assert.ok(registered.body.token);
   assert.equal(registered.body.emailVerified, false);
@@ -46,7 +46,7 @@ test('signup and login work without mail credentials or confirmed email', async 
   const loggedIn = await request(app).post('/api/users/login').send({ email, password });
   assert.equal(loggedIn.status, 200); assert.ok(loggedIn.body.token);
   assert.equal((await request(app).post('/api/users/login').send({ email, password: 'wrong' })).status, 401);
-  assert.equal((await request(app).post('/api/users/register').send({ name: 'Collector', email, password })).status, 409);
+  assert.equal((await request(app).post('/api/users/register').send({ name: 'Collector', email, password, phone: '0912345678' })).status, 409);
   assert.equal(sent.length, 0);
 });
 
