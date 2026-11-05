@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../utils/api';
 import { Message } from '../components/UI';
 
 export default function LoginPage() {
@@ -9,13 +8,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState('');
-  const [notice, setNotice] = useState('');
-  const resend = async () => {
-    setLoading(true); setError(''); setNotice('');
-    try { const data = await apiFetch('/users/resend-verification', { method: 'POST', body: JSON.stringify({ email: pendingEmail }) }); setNotice(data.message); }
-    catch (err) { setError(err.message); } finally { setLoading(false); }
-  };
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -24,14 +16,11 @@ export default function LoginPage() {
   const submitHandler = async (e) => {
     e.preventDefault();
     setError('');
-    setNotice('');
-    setPendingEmail('');
     setLoading(true);
     try {
       await login(email, password);
       navigate(redirect ? `/${redirect}` : '/');
     } catch (err) {
-      if (err.code === 'EMAIL_UNVERIFIED') setPendingEmail(email.trim());
       setError(err.message);
     } finally {
       setLoading(false);
@@ -42,7 +31,6 @@ export default function LoginPage() {
     <div className="page container auth-page">
       <div className="auth-card card">
         <h1>Sign In</h1>
-        {notice && <div role="status"><Message>{notice}</Message></div>}
         {error && <Message variant="error">{error}</Message>}
         <form onSubmit={submitHandler}>
           <label>
@@ -53,7 +41,7 @@ export default function LoginPage() {
               maxLength={254}
               required
               value={email}
-              onChange={(e) => { setEmail(e.target.value); setPendingEmail(''); setNotice(''); }}
+              onChange={(e) => setEmail(e.target.value)}
               className="input"
               placeholder="you@example.com"
             />
@@ -75,7 +63,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        {pendingEmail && <button className="btn btn-ghost btn-block" type="button" disabled={loading} onClick={resend}>Resend confirmation</button>}
         <p className="auth-switch">
           New customer? <Link to="/register">Create an account</Link>
         </p>

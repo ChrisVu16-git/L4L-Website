@@ -1,5 +1,4 @@
-import VerifyEmailPage from './pages/VerifyEmailPage';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { PrivateRoute } from './components/PrivateRoute';
@@ -25,7 +24,7 @@ export default function App() {
           <Route path="/product/:id" element={<ProductPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/verify-email" element={<Navigate to="/login" replace />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
             path="/shipping"

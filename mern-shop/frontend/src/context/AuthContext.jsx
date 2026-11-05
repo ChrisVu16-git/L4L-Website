@@ -30,6 +30,8 @@ export function AuthProvider({ children }) {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
     });
+    setUser(data);
+    localStorage.setItem('userInfo', JSON.stringify(data));
     return data;
   };
 
