@@ -9,6 +9,13 @@ export default function OrderPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [paymentError, setPaymentError] = useState('');
+  const [paying, setPaying] = useState(false);
+  const pay = async () => {
+    setPaymentError(''); setPaying(true);
+    try { const { url } = await apiFetch(`/orders/${id}/checkout`, { method: 'POST' }); window.location.assign(url); }
+    catch (err) { setPaymentError(err.message); setPaying(false); }
+  };
 
   const success = searchParams.get('success');
   const cancelled = searchParams.get('cancelled');
@@ -51,6 +58,7 @@ export default function OrderPage() {
       {success && order.isPaid && (
         <Message variant="success">Payment successful! Thank you for your order.</Message>
       )}
+      {success && !order.isPaid && <Message>Waiting for payment confirmation. Refresh this page shortly.</Message>}
       {cancelled && <Message variant="error">Payment was cancelled.</Message>}
 
       <div className="order-grid">
@@ -72,7 +80,12 @@ export default function OrderPage() {
 
         <div className="card">
           <h2>Payment</h2>
-          <p>Method: {order.paymentMethod}</p>
+          <p>Stripe sandbox · test payments only</p>
+          {!order.isPaid && <>
+            <p>Use test card 4242 4242 4242 4242 with a future expiry and any three-digit CVC.</p>
+            {paymentError && <Message variant="error">{paymentError}</Message>}
+            <button className="btn btn-primary" onClick={pay} disabled={paying}>{paying ? 'Opening checkout…' : 'Pay in sandbox'}</button>
+          </>}
           {order.isPaid ? (
             <Message variant="success">Paid on {new Date(order.paidAt).toLocaleDateString()}</Message>
           ) : (

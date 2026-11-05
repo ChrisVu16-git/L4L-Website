@@ -1,12 +1,21 @@
-import Stripe from 'stripe';
+import mongoose from 'mongoose';
+import { getSandboxStripe, checkoutParams, validPaidSession } from '../utils/payments.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder');
+
 
 export const addOrderItems = async (req, res) => {
   try {
-  const { orderItems, shippingAddress, paymentMethod } = req.body;
+  const { orderItems, shippingAddress } = req.body;
+  const paymentMethod = 'stripe';
+  if (!req.user.emailVerified) return res.status(403).json({ message: 'Confirm your email before checkout.' });
+  if (!shippingAddress || ['address', 'city', 'postalCode', 'country'].some(key => typeof shippingAddress[key] !== 'string' || !shippingAddress[key].trim() || shippingAddress[key].length > 200)) {
+    return res.status(400).json({ message: 'Enter a complete shipping address.' });
+  }
+  if (!Array.isArray(orderItems) || orderItems.length > 100 || orderItems.some(item => !item || !mongoose.isValidObjectId(item.product) || !Number.isSafeInteger(item.qty) || item.qty < 1 || item.qty > 100) || new Set(orderItems.map(item => String(item.product))).size !== orderItems.length) {
+    return res.status(400).json({ message: 'Invalid order items or quantities.' });
+  }
 
   if (!orderItems?.length) {
     return res.status(400).json({ message: 'No order items' });
@@ -84,87 +93,66 @@ export const updateOrderToDelivered = async (req, res) => {
   res.json(updated);
 };
 
-export const createCheckoutSession = async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  if (!order) {
-    return res.status(404).json({ message: 'Order not found' });
+export const createCheckoutSession = async (req, res, next) => {
+  try {
+    if (!req.user.emailVerified) return res.status(403).json({ message: 'Confirm your email before checkout.' });
+    const stripe = getSandboxStripe();
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Not authorized' });
+    if (order.isPaid) return res.status(400).json({ message: 'Order already paid' });
+    if (order.stripeSessionId) {
+      const existing = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
+      if (existing.status === 'open') return res.json({ url: existing.url, sessionId: existing.id });
+      if (existing.status === 'complete') return res.status(409).json({ message: 'Payment is being confirmed. Refresh the order shortly.' });
+    }
+    for (const item of order.orderItems) {
+      const product = await Product.findById(item.product);
+      if (!product || product.countInStock < item.qty) return res.status(409).json({ message: 'An item is no longer in stock.' });
+    }
+    const session = await stripe.checkout.sessions.create(checkoutParams(order, req.user.email), {
+      idempotencyKey: `order-${order._id}-${order.stripeSessionId || 'initial'}`,
+    });
+    order.stripeSessionId = session.id;
+    await order.save();
+    res.json({ url: session.url, sessionId: session.id });
+  } catch (err) {
+    if (err.code === 'PAYMENTS_UNCONFIGURED') return res.status(503).json({ message: err.message });
+    next(err);
   }
-
-  if (order.user.toString() !== req.user._id.toString()) {
-    return res.status(403).json({ message: 'Not authorized' });
-  }
-
-  if (order.isPaid) {
-    return res.status(400).json({ message: 'Order already paid' });
-  }
-
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'payment',
-    success_url: `${clientUrl}/order/${order._id}?success=true`,
-    cancel_url: `${clientUrl}/order/${order._id}?cancelled=true`,
-    line_items: order.orderItems.map((item) => ({
-      price_data: {
-        currency: 'usd',
-        product_data: {
-          name: item.name,
-          images: [item.image],
-        },
-        unit_amount: Math.round(item.price * 100),
-      },
-      quantity: item.qty,
-    })),
-    metadata: { orderId: order._id.toString() },
-  });
-
-  order.stripeSessionId = session.id;
-  await order.save();
-
-  res.json({ url: session.url, sessionId: session.id });
 };
 
 export const stripeWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
   let event;
-
   try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET || ''
-    );
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const order = await Order.findById(session.metadata.orderId);
-
-    if (order && !order.isPaid) {
-      order.isPaid = true;
-      order.paidAt = Date.now();
-      order.paymentResult = {
-        id: session.payment_intent,
-        status: session.payment_status,
-        email_address: session.customer_details?.email,
-      };
-
+    const stripe = getSandboxStripe();
+    if (!process.env.STRIPE_WEBHOOK_SECRET) return res.status(503).json({ message: 'Sandbox webhook is not configured.' });
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+  } catch { return res.status(400).json({ message: 'Invalid sandbox webhook signature or configuration.' }); }
+  if (event.livemode || event.type !== 'checkout.session.completed') return res.json({ received: true });
+  const session = event.data.object;
+  if (session.payment_status !== 'paid' || !mongoose.isValidObjectId(session.metadata?.orderId)) return res.json({ received: true });
+  try {
+    // The order update and stock decrements commit together. Retries and duplicate
+    // deliveries observe isPaid and cannot decrement stock twice.
+    await mongoose.connection.transaction(async dbSession => {
+      const order = await Order.findById(session.metadata.orderId).session(dbSession);
+      if (!order || order.isPaid) return;
+      if (!validPaidSession(session, order)) throw new Error('Payment does not match this order');
       for (const item of order.orderItems) {
-        const product = await Product.findById(item.product);
-        if (product) {
-          product.countInStock = Math.max(0, product.countInStock - item.qty);
-          await product.save();
-        }
+        const result = await Product.updateOne({ _id: item.product, countInStock: { $gte: item.qty } }, { $inc: { countInStock: -item.qty } }, { session: dbSession });
+        if (result.modifiedCount !== 1) throw new Error('Paid order needs stock reconciliation');
       }
-
-      await order.save();
-    }
+      order.isPaid = true;
+      order.paidAt = new Date();
+      order.paymentResult = { id: session.payment_intent, status: session.payment_status, email_address: session.customer_details?.email };
+      await order.save({ session: dbSession });
+    });
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Sandbox payment fulfillment failed:', err.message);
+    res.status(500).json({ message: 'Payment fulfillment failed; retry webhook after resolving the issue.' });
   }
-
-  res.json({ received: true });
 };
 
 export const markOrderPaid = async (req, res) => {
