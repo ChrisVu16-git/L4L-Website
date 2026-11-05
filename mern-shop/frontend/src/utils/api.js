@@ -28,7 +28,10 @@ export async function apiFetch(endpoint, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data.message || 'Something went wrong');
+    const error = new Error(data.message || 'Something went wrong');
+    error.code = data.code;
+    error.verificationPending = data.verificationPending === true;
+    throw error;
   }
 
   return data;

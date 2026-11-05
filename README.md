@@ -190,7 +190,7 @@ on pull requests targeting that branch, and via `workflow_dispatch`:
 | Check | Working directory | Commands |
 |---|---|---|
 | Backend Tests / test | `mern-shop/backend` | `npm ci`, `npm test` (`node --test`) |
-| Frontend Build / build | `mern-shop/frontend` | `npm ci`, `npm run build` (`vite build`) |
+| Frontend Build / build | `mern-shop/frontend` | `npm ci`, `npm test` (Vitest), `npm run build` (`vite build`) |
 
 Both use Node.js 22 and cache npm downloads using the corresponding committed
 lockfile. Each has a ten-minute timeout, read-only repository permissions, and
@@ -209,7 +209,7 @@ Frontend CI uses `VITE_API_URL=/api` solely to check compilation. Vite exposes
 `VITE_*` values in browser code, so these must never contain secrets. The build
 neither starts nor calls the deployed API and does not deploy to Vercel or Render.
 Deployment credentials and environment configuration remain with those hosts.
-Automated frontend/browser tests are still a separate next step. Manual workflow
+Frontend signup/login component tests run in jsdom; real browser end-to-end tests remain a next step. Manual workflow
 launches may only appear in GitHub's UI after the workflow exists on the default
 branch; push/PR triggers are aligned to `l4lstore-deployment`.
 
@@ -235,28 +235,65 @@ It is a design handoff, not a verified browser capture of the deployed site.
 
 Register at `/register` with your name, email and a password of at least eight
 characters (maximum 72 UTF-8 bytes). The form suggests `@gmail.com` when you type
-an address without a domain; other providers are accepted. Server validation checks
+an address without a domain; the field label is simply **Email**. Server validation checks
 address syntax, not mailbox existence. Ownership is established only by following
 the emailed confirmation link and pressing **Confirm email**. It expires after
 30 minutes and can be used once. Only the SHA-256 token hash is stored in MongoDB;
 raw tokens are never returned by the API. Registration does not sign users in.
 
-Set the following **backend-only** environment values (see `backend/.env.example`):
+### Email hosting configuration
 
-| Variable | Purpose |
-|---|---|
-| `SMTP_HOST`, `SMTP_PORT` | Mail server and port, usually 587 (STARTTLS) or 465 (TLS) |
-| `SMTP_USER`, `SMTP_PASS` | SMTP sender credentials; use a Gmail App Password when using Gmail SMTP |
-| `MAIL_FROM` | Authorized sender address, e.g. `L4LStore <your-sender@gmail.com>` |
-| `CLIENT_URL` | Trusted frontend origin used in email links and VNPay return URLs |
-| `JWT_SECRET` | Private application signing secret |
+The Vercel frontend calls `https://l4l-website.onrender.com/api`; email is sent by
+the **Render backend**, not Vercel. The error `Account email delivery is not
+configured` means no complete backend sender/provider configuration is available.
+Changing only Vercel environment variables cannot fix backend delivery.
 
-These belong in Render environment settings, never frontend `VITE_*` values or GitHub
-CI secrets. Gmail SMTP commonly uses `smtp.gmail.com`; enable two-step verification
-and create an App Password for the sender. Never use your normal Gmail password.
-No personal Gmail API or Google OAuth login is needed for this SMTP integration.
-A transactional mail service is preferable as traffic grows. SMTP submission does
-not guarantee inbox delivery; check spam and provider logs.
+Render Free blocks outbound SMTP ports 25, 465 and 587. Use the supported HTTPS
+Resend transport on that plan, or use SMTP on a host/plan that permits it.
+
+**HTTPS transport (Render Free compatible):** set these in the backend Render
+service's Environment settings, then redeploy:
+
+```env
+RESEND_API_KEY=your_private_sending_key
+MAIL_FROM=L4LStore <accounts@your-verified-domain.example>
+CLIENT_URL=https://l4-l-website.vercel.app
+```
+
+Authorize your sending domain/address with Resend. A Gmail address can receive
+confirmation emails but cannot be used as an arbitrary Resend sender. Resend's
+onboarding/test sender is restricted; for sending to arbitrary signup addresses,
+verify your own domain. Check provider logs for acceptance/bounces and the recipient's
+spam folder. The API transport verifies a successful provider response with an email ID;
+it does not treat provider rejection as a sent confirmation. An API acknowledgement
+still does not prove delivery to the recipient's inbox.
+
+**SMTP alternative:** leave `RESEND_API_KEY` unset and configure `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, and `CLIENT_URL` on a host with
+SMTP access. Gmail SMTP uses an App Password, not the normal account password.
+If `RESEND_API_KEY` is configured, HTTPS takes precedence; there is no silent SMTP
+fallback when the API provider rejects a send.
+
+Keep all provider keys and SMTP passwords in backend environment settings. Never
+place them in Vercel `VITE_*` variables, source code, PR descriptions or CI secrets.
+Tests mock delivery and require no real email credentials.
+
+Official references: [Render Free limits](https://render.com/docs/free) and
+[Resend email API](https://resend.com/docs/api-reference/emails/send-email).
+
+### Confirmation controls
+
+The initial registration form shows neither a send nor resend button. After a
+registration response indicates a pending verification, it switches to a confirmation
+panel for the submitted address and offers **Resend confirmation**. Missing email
+configuration leaves the signup form open and does not offer resend. If an account
+was created but sending failed, a structured `verificationPending` error enables
+resend recovery. Failed sends release the per-account resend cooldown so an immediate
+retry can be attempted (the shared IP rate limit still applies).
+
+Login offers **Resend confirmation** only after correct credentials identify an
+unverified account. Editing the email hides it again. No public mailbox-existence
+lookup is added; format validation cannot prove a Gmail mailbox exists.
 
 `POST /api/users/register` queues no background job: it sends the email during the
 request. Missing SMTP configuration returns 503 before creating an account. A send
@@ -409,7 +446,7 @@ The following checks were completed during deployment and R2 migration testing:
 ## Known limitations and next steps
 
 - Payments are intentionally sandbox-only. Live keys are rejected; refunds, stock reservations, and reconciliation tooling are not implemented.
-- Add automated frontend and end-to-end tests.
+- Extend the signup/login component tests with browser end-to-end tests.
 - Confirm the new GitHub Actions checks on a pull request before making them required branch checks.
 - Expand API documentation with example request and response bodies.
 

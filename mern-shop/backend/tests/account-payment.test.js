@@ -15,17 +15,21 @@ const email = `collector-${suffix}@example.com`;
 const password = 'TestPassword123!';
 const sent = [];
 let user, product, order;
-const envKeys = ['SMTP_HOST','SMTP_USER','SMTP_PASS','MAIL_FROM','VNPAY_TMN_CODE','VNPAY_HASH_SECRET','VNPAY_RETURN_URL','VNPAY_USD_TO_VND_RATE'];
+let failEmail = false;
+const failedEmail = `failed-${suffix}@example.com`;
+const missingEmail = `missing-${suffix}@example.com`;
+const envKeys = ['RESEND_API_KEY','SMTP_HOST','SMTP_USER','SMTP_PASS','MAIL_FROM','VNPAY_TMN_CODE','VNPAY_HASH_SECRET','VNPAY_RETURN_URL','VNPAY_USD_TO_VND_RATE'];
 const originalEnv = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
 before(async () => {
   assert.ok(process.env.TEST_MONGO_URI, 'TEST_MONGO_URI is required');
   await mongoose.connect(process.env.TEST_MONGO_URI);
+  delete process.env.RESEND_API_KEY;
   Object.assign(process.env, { SMTP_HOST: 'smtp.example.test', SMTP_USER: 'test', SMTP_PASS: 'fake', MAIL_FROM: 'L4LStore <test@example.test>', VNPAY_TMN_CODE: 'TESTCODE', VNPAY_HASH_SECRET: 'fake-hash-secret', VNPAY_RETURN_URL: 'http://localhost:5000/api/orders/vnpay/return', VNPAY_USD_TO_VND_RATE: '25000' });
-  mock.method(nodemailer, 'createTransport', () => ({ sendMail: async message => { sent.push(message); return {}; } }));
+  mock.method(nodemailer, 'createTransport', () => ({ sendMail: async message => { if (failEmail) throw new Error('Fixture delivery failure'); sent.push(message); return {}; } }));
 });
 after(async () => {
   mock.restoreAll();
-  await User.deleteMany({ email });
+  await User.deleteMany({ email: { $in: [email, failedEmail, missingEmail] } });
   if (order) await Order.deleteOne({ _id: order._id });
   if (product) await Product.deleteOne({ _id: product._id });
   for (const [key, value] of Object.entries(originalEnv)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
@@ -34,6 +38,7 @@ after(async () => {
 
 test('signup requires mailbox proof, expiry and resend, then allows login', async () => {
   const registered = await request(app).post('/api/users/register').send({ name: 'Collector', email: email.toUpperCase(), password });
+  assert.equal(registered.body.verificationPending, true);
   assert.equal(registered.status, 201); assert.equal(registered.body.token, undefined);
   assert.equal(sent.length, 1); assert.equal(sent[0].to, email);
   const token = new URL(sent[0].text.match(/https?:\/\/\S+/)[0]).searchParams.get('token');
@@ -52,6 +57,32 @@ test('signup requires mailbox proof, expiry and resend, then allows login', asyn
   const loggedIn = await request(app).post('/api/users/login').send({ email, password });
   assert.equal(loggedIn.status, 200); assert.ok(loggedIn.body.token);
   assert.equal(loggedIn.body.verificationHash, undefined);
+});
+
+test('missing mail config does not create an account or expose resend state', async () => {
+  const sender = process.env.MAIL_FROM;
+  delete process.env.MAIL_FROM;
+  try {
+    const response = await request(app).post('/api/users/register').send({ name: 'Collector', email: missingEmail, password });
+    assert.equal(response.status, 503);
+    assert.equal(response.body.code, 'EMAIL_NOT_CONFIGURED');
+    assert.equal(response.body.verificationPending, undefined);
+    assert.equal(await User.exists({ email: missingEmail }), null);
+  } finally { process.env.MAIL_FROM = sender; }
+});
+
+test('delivery failure after creation exposes pending state and allows immediate retry', async () => {
+  failEmail = true;
+  let response;
+  try { response = await request(app).post('/api/users/register').send({ name: 'Collector', email: failedEmail, password }); }
+  finally { failEmail = false; }
+  assert.equal(response.status, 503);
+  assert.equal(response.body.code, 'EMAIL_DELIVERY_FAILED');
+  assert.equal(response.body.verificationPending, true);
+  assert.ok(await User.exists({ email: failedEmail }));
+  const retried = await request(app).post('/api/users/resend-verification').send({ email: failedEmail });
+  assert.equal(retried.status, 202);
+  assert.equal(sent.at(-1).to, failedEmail);
 });
 
 test('VNPay checkout/return/IPN checks amounts and fulfills concurrent notifications exactly once', async () => {

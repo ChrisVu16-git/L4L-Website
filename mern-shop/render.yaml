@@ -17,6 +17,11 @@ services:
         generateValue: true
       - key: CLIENT_URL
         sync: false
+      # Configure an authorized sender and one email provider in Render.
+      - key: MAIL_FROM
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
       - key: VNPAY_TMN_CODE
         sync: false
       - key: VNPAY_HASH_SECRET

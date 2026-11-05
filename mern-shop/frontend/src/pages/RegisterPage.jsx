@@ -13,10 +13,11 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const [notice, setNotice] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
   const gmailSuggestion = email && !email.includes('@') && /^[a-zA-Z0-9.]+$/.test(email) ? `${email}@gmail.com` : '';
   const resend = async () => {
     setError(''); setLoading(true);
-    try { const data = await apiFetch('/users/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }); setNotice(data.message); }
+    try { const data = await apiFetch('/users/resend-verification', { method: 'POST', body: JSON.stringify({ email: pendingEmail }) }); setNotice(data.message); }
     catch (err) { setError(err.message); } finally { setLoading(false); }
   };
 
@@ -29,9 +30,12 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      const data = await register(name, email.trim(), password);
+      const submittedEmail = email.trim();
+      const data = await register(name, submittedEmail, password);
+      if (data.verificationPending) setPendingEmail(submittedEmail);
       setNotice(data.message);
     } catch (err) {
+      if (err.verificationPending) setPendingEmail(email.trim());
       setError(err.message);
     } finally {
       setLoading(false);
@@ -41,11 +45,15 @@ export default function RegisterPage() {
   return (
     <div className="page container auth-page">
       <div className="auth-card card">
-        <h1>Create Account</h1>
+        <h1>{pendingEmail ? 'Check your email' : 'Create Account'}</h1>
         <p>Join the collector’s corner. Confirm your email to finish creating your account.</p>
         {notice && <div role="status"><Message>{notice}</Message></div>}
         {error && <Message variant="error">{error}</Message>}
-        <form onSubmit={submitHandler}>
+        {pendingEmail ? <div>
+          <p>Confirmation for {pendingEmail}</p>
+          <button type="button" className="btn btn-primary btn-block" disabled={loading} onClick={resend}>{loading ? 'Sending…' : 'Resend confirmation'}</button>
+          <button type="button" className="btn btn-ghost btn-block" onClick={() => { setPendingEmail(''); setNotice(''); setError(''); }} disabled={loading}>Use a different email</button>
+        </div> : <form onSubmit={submitHandler}>
           <label>
             Name
             <input
@@ -59,13 +67,12 @@ export default function RegisterPage() {
             />
           </label>
           <label>
-            Email (Gmail welcome)
+            Email
             <input
               type="email"
               autoComplete="email"
               placeholder="yourname@gmail.com"
               list="email-suggestions"
-              aria-describedby="email-help"
               maxLength={254}
               required
               value={email}
@@ -74,7 +81,6 @@ export default function RegisterPage() {
             />
           </label>
           <datalist id="email-suggestions">{gmailSuggestion && <option value={gmailSuggestion} />}</datalist>
-          <p id="email-help">Use an email you can access. We’ll send a confirmation link. Other email providers are welcome too.</p>
           <label>
             Password
             <input
@@ -101,8 +107,7 @@ export default function RegisterPage() {
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
             {loading ? 'Creating...' : 'Register'}
           </button>
-        </form>
-        <button type="button" className="btn btn-ghost btn-block" disabled={loading || !email} onClick={resend}>Resend confirmation</button>
+        </form>}
         <p className="auth-switch">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
