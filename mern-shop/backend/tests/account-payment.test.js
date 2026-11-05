@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import nodemailer from 'nodemailer';
-import Stripe from 'stripe';
+import { signPayment } from '../utils/payments.js';
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import User from '../models/User.js';
@@ -15,12 +15,12 @@ const email = `collector-${suffix}@example.com`;
 const password = 'TestPassword123!';
 const sent = [];
 let user, product, order;
-const envKeys = ['SMTP_HOST','SMTP_USER','SMTP_PASS','MAIL_FROM','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET'];
+const envKeys = ['SMTP_HOST','SMTP_USER','SMTP_PASS','MAIL_FROM','VNPAY_TMN_CODE','VNPAY_HASH_SECRET','VNPAY_RETURN_URL','VNPAY_USD_TO_VND_RATE'];
 const originalEnv = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
 before(async () => {
   assert.ok(process.env.TEST_MONGO_URI, 'TEST_MONGO_URI is required');
   await mongoose.connect(process.env.TEST_MONGO_URI);
-  Object.assign(process.env, { SMTP_HOST: 'smtp.example.test', SMTP_USER: 'test', SMTP_PASS: 'fake', MAIL_FROM: 'L4LStore <test@example.test>', STRIPE_SECRET_KEY: 'sk_test_fake', STRIPE_WEBHOOK_SECRET: 'whsec_fake' });
+  Object.assign(process.env, { SMTP_HOST: 'smtp.example.test', SMTP_USER: 'test', SMTP_PASS: 'fake', MAIL_FROM: 'L4LStore <test@example.test>', VNPAY_TMN_CODE: 'TESTCODE', VNPAY_HASH_SECRET: 'fake-hash-secret', VNPAY_RETURN_URL: 'http://localhost:5000/api/orders/vnpay/return', VNPAY_USD_TO_VND_RATE: '25000' });
   mock.method(nodemailer, 'createTransport', () => ({ sendMail: async message => { sent.push(message); return {}; } }));
 });
 after(async () => {
@@ -54,28 +54,41 @@ test('signup requires mailbox proof, expiry and resend, then allows login', asyn
   assert.equal(loggedIn.body.verificationHash, undefined);
 });
 
-test('signed sandbox webhook fulfills exactly once; mismatches and failed signatures do not pay', async () => {
+test('VNPay checkout/return/IPN checks amounts and fulfills concurrent notifications exactly once', async () => {
   user = await User.findOne({ email });
   product = await Product.create({ name: 'Sandbox figure', description: 'Test', price: 25, category: 'Testing', image: 'https://example.test/figure.jpg', countInStock: 5 });
-  order = await Order.create({ user: user._id, orderItems: [{ product: product._id, name: product.name, image: product.image, price: 25, qty: 1 }], shippingAddress: { address: 'Test', city: 'Test', postalCode: '10000', country: 'VN' }, paymentMethod: 'stripe', itemsPrice: 25, shippingPrice: 10, taxPrice: 2.5, totalPrice: 37.5, stripeSessionId: 'cs_test_fixture' });
-  const stripe = new Stripe('sk_test_fake');
-  const session = { id: 'cs_test_fixture', mode: 'payment', payment_status: 'paid', currency: 'usd', amount_total: 3750, livemode: false, metadata: { orderId: String(order._id) }, payment_intent: 'pi_test_fixture' };
-  const deliver = async (changes = {}, eventChanges = {}) => {
-    const payload = JSON.stringify({ id: 'evt_test', type: 'checkout.session.completed', livemode: false, data: { object: { ...session, ...changes } }, ...eventChanges });
-    const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: process.env.STRIPE_WEBHOOK_SECRET });
-    return request(app).post('/api/orders/webhook').set('Content-Type','application/json').set('stripe-signature', signature).send(payload);
-  };
-  assert.equal((await request(app).post('/api/orders/webhook').set('Content-Type','application/json').send('{}')).status, 400);
-  assert.equal((await deliver({ payment_status: 'unpaid' })).status, 200);
-  assert.equal((await deliver({}, { livemode: true })).status, 200);
-  assert.equal((await deliver({ amount_total: 2500 })).status, 500);
+  order = await Order.create({ user: user._id, orderItems: [{ product: product._id, name: product.name, image: product.image, price: 25, qty: 1 }], shippingAddress: { address: 'Test', city: 'Test', postalCode: '10000', country: 'VN' }, paymentMethod: 'vnpay', itemsPrice: 25, shippingPrice: 10, taxPrice: 2.5, totalPrice: 37.5 });
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+  const checkout = () => request(app).post(`/api/orders/${order._id}/checkout`).set('Authorization', `Bearer ${token}`).send({ amount: 1 });
+  const quotes = await Promise.all([checkout(), checkout()]);
+  assert.deepEqual(quotes.map(q => q.status), [200,200]);
+  assert.equal(quotes[0].body.amountVnd, 937500);
+  const reference = new URL(quotes[0].body.url).searchParams.get('vnp_TxnRef');
+  assert.equal(new URL(quotes[1].body.url).searchParams.get('vnp_TxnRef'), reference);
+  assert.equal((await Order.findById(order._id)).vnpayAttempts.length, 1);
+  const params = { vnp_TxnRef: reference, vnp_Amount: '93750000', vnp_TmnCode: process.env.VNPAY_TMN_CODE, vnp_ResponseCode: '00', vnp_TransactionStatus: '00', vnp_TransactionNo: '12345678' };
+  const query = changes => { const values = { ...params, ...changes }; return new URLSearchParams({ ...values, vnp_SecureHash: signPayment(values, process.env.VNPAY_HASH_SECRET) }).toString(); };
+  const deliver = (changes = {}) => request(app).get(`/api/orders/vnpay/ipn?${query(changes)}`);
+  assert.equal((await request(app).get('/api/orders/vnpay/ipn?vnp_SecureHash=bad')).body.RspCode, '97');
+  assert.equal((await deliver({ vnp_Amount: '100' })).body.RspCode, '04');
+  assert.equal((await deliver({ vnp_TxnRef: 'unknown' })).body.RspCode, '01');
+  assert.equal((await deliver({ vnp_ResponseCode: '24', vnp_TransactionStatus: '02' })).body.RspCode, '00');
+  const retry = await checkout();
+  assert.equal(retry.status, 200);
+  assert.notEqual(new URL(retry.body.url).searchParams.get('vnp_TxnRef'), reference);
+  assert.equal((await Order.findById(order._id)).vnpayAttempts.length, 2);
+  assert.equal((await deliver({ vnp_TmnCode: 'OTHER' })).body.RspCode, '97');
+  assert.equal((await request(app).get('/api/orders/vnpay/return?vnp_SecureHash=bad')).status, 400);
+  const returned = await request(app).get(`/api/orders/vnpay/return?${query({})}`);
+  assert.equal(returned.status, 303); assert.match(returned.headers.location, /payment=pending/);
   assert.equal((await Order.findById(order._id)).isPaid, false);
-  const results = await Promise.all([deliver(), deliver()]);
-  assert.deepEqual(results.map(r => r.status), [200, 200]);
+  assert.equal((await Product.findById(product._id)).countInStock, 5);
+  const duplicates = await Promise.all([deliver(), deliver()]);
+  assert.deepEqual(duplicates.map(r => r.body.RspCode).sort(), ['00','02']);
   assert.equal((await Order.findById(order._id)).isPaid, true);
   assert.equal((await Product.findById(product._id)).countInStock, 4);
-  assert.equal((await deliver()).status, 200);
-  assert.equal((await Product.findById(product._id)).countInStock, 4);
+  assert.equal((await deliver()).body.RspCode, '02');
+  assert.equal((await request(app).post('/api/orders/webhook').send({})).status, 404);
 });
 
 test('checkout rejects bad quantities, malformed order IDs, and unconfigured payments', async () => {
@@ -84,6 +97,6 @@ test('checkout rejects bad quantities, malformed order IDs, and unconfigured pay
   const response = await request(app).post('/api/orders').set(auth).send({ orderItems: [{ product: product._id, qty: -1 }], shippingAddress: { address: 'Test', city: 'Test', postalCode: '1', country: 'VN' } });
   assert.equal(response.status, 400);
   assert.equal((await request(app).get('/api/orders/not-an-id').set(auth)).status, 400);
-  delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.VNPAY_HASH_SECRET;
   assert.equal((await request(app).post(`/api/orders/${order._id}/checkout`).set(auth)).status, 503);
 });

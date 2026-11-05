@@ -1,13 +1,13 @@
 # MERN Shop — E-Commerce Website
 
-A full-stack online store built with **MongoDB**, **Express**, **React**, and **Node.js**. Includes user authentication, product catalog, shopping cart, Stripe checkout, and an admin dashboard.
+A full-stack online store built with **MongoDB**, **Express**, **React**, and **Node.js**. Includes user authentication, product catalog, shopping cart, VNPay sandbox checkout, and an admin dashboard.
 
 ## Features
 
 - Product catalog with search and category filters
 - User registration and JWT authentication
 - Persistent shopping cart (localStorage)
-- Multi-step checkout with Stripe payments
+- Multi-step checkout with VNPay sandbox payments
 - Order history and order tracking
 - Admin panel to manage products and orders
 - Production-ready deployment configs (Render, Vercel)
@@ -47,8 +47,10 @@ Edit `backend/.env`:
 MONGODB_URI=mongodb://127.0.0.1:27017/mern-shop
 JWT_SECRET=your-super-secret-key-change-in-production
 CLIENT_URL=http://localhost:5173
-STRIPE_SECRET_KEY=sk_test_...   # from stripe.com dashboard
-STRIPE_WEBHOOK_SECRET=whsec_... # optional for local dev
+VNPAY_TMN_CODE=your_sandbox_terminal
+VNPAY_HASH_SECRET=your_sandbox_secret
+VNPAY_RETURN_URL=http://localhost:5000/api/orders/vnpay/return
+VNPAY_USD_TO_VND_RATE=your_chosen_sandbox_rate
 ```
 
 ### 4. Seed the database
@@ -72,14 +74,12 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000/api/health
 
-## Stripe Setup
+## VNPay sandbox setup
 
-1. Create a free account at [stripe.com](https://stripe.com)
-2. Get your **test** secret key from Developers → API keys
-3. Add it to `backend/.env` as `STRIPE_SECRET_KEY`
-4. For production webhooks: add endpoint `https://your-api.com/api/orders/webhook` in Stripe Dashboard → Webhooks, event: `checkout.session.completed`
-
-Use Stripe test card: `4242 4242 4242 4242`, any future expiry, any CVC.
+See the [root README](../README.md#vnpay-sandbox-payments) and `backend/.env.example`
+for merchant credentials, USD-to-VND quote configuration, public HTTPS IPN, return URL,
+and replica-set requirements. The customer reviews the VND quote before redirecting
+to VNPay. A signed server IPN, not the browser return, confirms payment.
 
 ## Deploy Online
 
@@ -138,7 +138,7 @@ mern-shop/
 | GET    | /api/products               | List products        |
 | GET    | /api/products/:id           | Get product          |
 | POST   | /api/orders                 | Create order         |
-| POST   | /api/orders/:id/checkout    | Stripe checkout      |
+| POST   | /api/orders/:id/checkout    | VNPay sandbox checkout      |
 | GET    | /api/orders/myorders        | User orders          |
 
 ## License

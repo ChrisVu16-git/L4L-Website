@@ -7,7 +7,7 @@ A full-stack e-commerce web application built with React and Node.js. This proje
 **Products API:** [Browse product data](https://l4l-website.onrender.com/api/products)  
 **Source code:** [ChrisVu16-git/L4L-Website](https://github.com/ChrisVu16-git/L4L-Website)
 
-> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. The new sandbox payment and email-confirmation flows require backend configuration and deployment. They are not verified against a real Stripe sandbox or SMTP sender yet. Do not enter real payment details.
+> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. The new sandbox payment and email-confirmation flows require backend configuration and deployment. They are not verified against a real VNPay sandbox or SMTP sender yet. Do not enter real payment details.
 
 ## Features
 
@@ -215,7 +215,7 @@ branch; push/PR triggers are aligned to `l4lstore-deployment`.
 
 The initial CI/storefront commit passed both GitHub Actions workflows. The subsequent
 email-confirmation and sandbox payment changes add regression tests, including signed
-webhook replay and transaction checks. Inspect the Actions run for the latest PR
+IPN replay and transaction checks. Inspect the Actions run for the latest PR
 commit before claiming that these expanded checks pass.
 
 ## Figure storefront
@@ -248,7 +248,7 @@ Set the following **backend-only** environment values (see `backend/.env.example
 | `SMTP_HOST`, `SMTP_PORT` | Mail server and port, usually 587 (STARTTLS) or 465 (TLS) |
 | `SMTP_USER`, `SMTP_PASS` | SMTP sender credentials; use a Gmail App Password when using Gmail SMTP |
 | `MAIL_FROM` | Authorized sender address, e.g. `L4LStore <your-sender@gmail.com>` |
-| `CLIENT_URL` | Trusted frontend origin used in email links and Stripe return URLs |
+| `CLIENT_URL` | Trusted frontend origin used in email links and VNPay return URLs |
 | `JWT_SECRET` | Private application signing secret |
 
 These belong in Render environment settings, never frontend `VITE_*` values or GitHub
@@ -271,50 +271,91 @@ signing in. Previously issued JWTs are not revoked by this migration, but order 
 and checkout independently require a verified database user. No admin is automatically
 marked verified. Confirm the admin account before deploying this change broadly.
 
-## Sandbox payments
+## VNPay sandbox payments
 
-Use a Stripe sandbox/test account and configure these backend values:
+VNPay 2.1.0 replaces the previous payment integration. Register a sandbox merchant
+at [VNPay developer registration](https://sandbox.vnpayment.vn/devreg/) to obtain
+`vnp_TmnCode` and `vnp_HashSecret`. Configure **backend-only** environment values:
 
 ```env
-STRIPE_SECRET_KEY=sk_test_replace_me
-STRIPE_WEBHOOK_SECRET=whsec_replace_me
-CLIENT_URL=http://localhost:5173
+VNPAY_TMN_CODE=your_sandbox_terminal_code
+VNPAY_HASH_SECRET=your_sandbox_hash_secret
+VNPAY_RETURN_URL=https://l4l-website.onrender.com/api/orders/vnpay/return
+VNPAY_USD_TO_VND_RATE=your_chosen_sandbox_conversion_rate
+CLIENT_URL=https://l4-l-website.vercel.app
+TRUST_PROXY_HOPS=0
 ```
 
-Live keys are refused. This hosted Checkout integration needs no frontend publishable
-key and handles no card data in the application. Create an order, then use **Pay in
-sandbox** on its order page. The amount comes from the saved server-side order total,
-including shipping and tax. The frontend does not control the charged price.
-Existing open Checkout sessions are reused; session creation uses an idempotency key.
-An unpaid order remains accessible from **My Orders** after cancellation or errors.
+For local development use `http://localhost:5000/api/orders/vnpay/return`.
+`TRUST_PROXY_HOPS` must match your verified reverse-proxy topology; set it to `1`
+only when exactly one trusted proxy sits between customers and Express (check your
+Render setup). The payment URL uses `req.ip`; arbitrary forwarded headers are not
+trusted by default. Incorrect proxy configuration can pass the proxy's IP to VNPay
+and can also affect authentication rate limiting.
 
-For local testing, forward Stripe events using your authenticated Stripe CLI:
+The gateway URL is fixed in code to `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html`.
+There is no production gateway switch. Use only sandbox merchant credentials and
+VNPay's current test bank/card details; real payments are outside this implementation.
+Remove the old Stripe environment variables and disable its old webhook endpoint.
+The Stripe SDK and active webhook route have been removed. Historical paid orders
+and their stored provider/session data are retained; unpaid orders can start VNPay
+checkout. Do not switch a real merchant with outstanding payments without reconciliation.
 
-```bash
-stripe listen --forward-to localhost:5000/api/orders/webhook
+### USD catalogue and VND payment quotes
+
+Catalogue and existing order prices remain USD. VNPay supports VND, so configure an
+explicit positive `VNPAY_USD_TO_VND_RATE` for sandbox quoting. There is no default
+exchange rate and no live FX lookup. For example **only in tests**, a rate of 25,000
+makes a USD 37.50 total become VND 937,500. This is an illustrative fixture, not a
+current exchange-rate claim. Whole-VND rounding is applied once; VNPay receives the
+VND amount multiplied by 100. Amounts outside VNPay's 12-digit protocol limit fail.
+
+From an unpaid order choose **Review VNPay payment**. The server saves a 15-minute
+quote/transaction reference, using the order's full total (items, tax and shipping).
+The customer sees the VND amount, conversion rate and expiry before choosing
+**Continue to VNPay sandbox**. Concurrent checkout requests reuse one stored quote.
+Changing the configured rate does not change an existing unexpired quote.
+Older attempts are retained for delayed IPNs. Failed IPNs allow a fresh attempt.
+There is no stock reservation while the customer is at the payment gateway.
+
+### Return URL and IPN
+
+Configure VNPay with this public HTTPS **IPN** URL (server-to-server notification):
+
+```text
+https://l4l-website.onrender.com/api/orders/vnpay/ipn
 ```
 
-Use the CLI's `whsec_...` value locally. For Render, configure a **test-mode** endpoint
-at `https://l4l-website.onrender.com/api/orders/webhook`, subscribe to
-`checkout.session.completed`, and use that endpoint's signing secret on Render.
-The raw-body webhook route must remain before `express.json()`. Test card:
-`4242 4242 4242 4242`, any future expiry, and any three-digit CVC. Never use a real card.
+The browser **return URL** and IPN are separate GET endpoints. Local IPN testing needs
+a public HTTPS tunnel forwarding to port 5000; localhost is not reachable by VNPay.
+Register the matching IPN URL with your sandbox merchant using VNPay's configuration
+process. The return URL verifies the signature and quote, then redirects to the
+frontend order page; it never marks an order paid or changes stock.
 
-Only a signed, test-mode `checkout.session.completed` with `payment_status=paid`,
-matching stored session ID, USD currency and exact total can fulfill an order.
-Returning to the success URL alone cannot mark it paid. Card payments are the only
-method enabled. Stock decrements and paid status commit in one MongoDB transaction;
-MongoDB must be a replica set (Atlas supports transactions). Standalone local MongoDB
-is sufficient for browsing, but cannot fulfill payments. CI uses a single-node replica
-set to test transactions and concurrent duplicate webhook delivery.
+Both callbacks verify the sorted/encoded HMAC-SHA512 signature and terminal code;
+duplicate query parameters are rejected. IPN also matches the stored reference and
+exact amount. Successful payment requires both `vnp_ResponseCode=00` and
+`vnp_TransactionStatus=00`, plus a valid VNPay transaction number. The backend does
+not accept a frontend success flag as payment proof.
 
-Stock is checked before checkout but is not reserved. If stock runs out before the
-webhook commits, fulfillment rolls back and returns 500 so Stripe can retry; manually
-reconcile/restock or refund the test payment before replaying the event. Refund and
-reconciliation UI, production mail delivery, and live payments are outside this change.
-No real Stripe transaction or Gmail delivery has been verified without provider secrets.
-The automated suite signs fixture webhooks and stubs SMTP; it never sends email or
-charges a payment provider.
+IPN responds with VNPay's `RspCode`/`Message` JSON: `00` acknowledges processing,
+`02` acknowledges an already-paid order, `01` means unknown order, `04` wrong amount,
+`97` bad signature/merchant, and `99` processing failure. A signed unsuccessful
+payment is acknowledged without marking the order paid. Duplicate successful IPNs
+cannot decrement stock twice: stock changes and paid status commit together in a
+MongoDB transaction. Use Atlas or a replica set, not standalone MongoDB, for payment
+fulfillment. Stock shortages return `99`; reconcile/restock or refund manually and
+request IPN replay. VNPay retries are limited; do not rely on indefinite retry.
+If multiple attempts somehow succeed for one order, only the first fulfills it;
+additional payments require manual provider reconciliation/refund.
+
+Automated tests cover a fixed independently computed HMAC fixture, callback tampering,
+amount and terminal mismatches, concurrent quote creation, return-without-fulfillment,
+failed payments, concurrent IPNs, and duplicate notification handling. No real VNPay
+sandbox transaction or external callback delivery has been verified without merchant
+credentials and a reachable configured IPN endpoint.
+
+Official protocol reference: [VNPay 2.1.0 payment integration](https://sandbox.vnpayment.vn/apis/docs/thanh-toan-pay/pay.html).
 
 ## API overview
 

@@ -3,7 +3,7 @@ import cors from 'cors';
 import userRoutes from './routes/userRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
-import { stripeWebhook } from './controllers/orderController.js';
+
 import uploadRoutes from './routes/uploadRoutes.js';
 
 
@@ -14,7 +14,10 @@ const allowedOrigins = [
 ];
 
 
-app.post('/api/orders/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+// Set only for a known reverse-proxy topology; never blindly trust forwarded IPs.
+const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
+if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 3) throw new Error('Invalid TRUST_PROXY_HOPS');
+app.set('trust proxy', proxyHops);
 
 app.use(
   cors({

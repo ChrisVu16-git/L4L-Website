@@ -18,7 +18,7 @@ const orderSchema = new mongoose.Schema(
       postalCode: { type: String, required: true },
       country: { type: String, required: true },
     },
-    paymentMethod: { type: String, required: true, default: 'stripe' },
+    paymentMethod: { type: String, required: true, default: 'vnpay' },
     paymentResult: {
       id: String,
       status: String,
@@ -32,10 +32,24 @@ const orderSchema = new mongoose.Schema(
     paidAt: Date,
     isDelivered: { type: Boolean, default: false },
     deliveredAt: Date,
+    // Keep this legacy field readable for historical paid orders only.
     stripeSessionId: String,
+    vnpayExpiresAt: Date,
+    vnpayAttempts: [{
+      _id: false,
+      reference: { type: String, required: true },
+      amountVnd: { type: Number, required: true },
+      usdToVndRate: { type: Number, required: true },
+      createdAt: { type: Date, required: true },
+      expiresAt: { type: Date, required: true },
+      responseCode: String,
+      transactionStatus: String,
+    }],
   },
   { timestamps: true }
 );
+
+orderSchema.index({ 'vnpayAttempts.reference': 1 });
 
 const Order = mongoose.model('Order', orderSchema);
 export default Order;

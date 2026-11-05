@@ -11,14 +11,15 @@ export default function OrderPage() {
   const [error, setError] = useState('');
   const [paymentError, setPaymentError] = useState('');
   const [paying, setPaying] = useState(false);
+  const [quote, setQuote] = useState(null);
   const pay = async () => {
     setPaymentError(''); setPaying(true);
-    try { const { url } = await apiFetch(`/orders/${id}/checkout`, { method: 'POST' }); window.location.assign(url); }
+    try { const data = await apiFetch(`/orders/${id}/checkout`, { method: 'POST' }); setQuote(data); setPaying(false); }
     catch (err) { setPaymentError(err.message); setPaying(false); }
   };
 
-  const success = searchParams.get('success');
-  const cancelled = searchParams.get('cancelled');
+  const success = searchParams.get('payment') === 'pending';
+  const cancelled = searchParams.get('payment') === 'failed';
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -59,7 +60,7 @@ export default function OrderPage() {
         <Message variant="success">Payment successful! Thank you for your order.</Message>
       )}
       {success && !order.isPaid && <Message>Waiting for payment confirmation. Refresh this page shortly.</Message>}
-      {cancelled && <Message variant="error">Payment was cancelled.</Message>}
+      {cancelled && <Message variant="error">Payment was cancelled or unsuccessful. You can try again.</Message>}
 
       <div className="order-grid">
         <div className="card">
@@ -80,12 +81,18 @@ export default function OrderPage() {
 
         <div className="card">
           <h2>Payment</h2>
-          <p>Stripe sandbox · test payments only</p>
+          <p>{order.isPaid ? `Payment recorded: ${order.paymentMethod}` : 'VNPay sandbox · test payments only'}</p>
           {!order.isPaid && <>
-            <p>Use test card 4242 4242 4242 4242 with a future expiry and any three-digit CVC.</p>
+            <p>Review the VND sandbox amount before continuing to VNPay. Use only VNPay’s sandbox test bank details.</p>
             {paymentError && <Message variant="error">{paymentError}</Message>}
-            <button className="btn btn-primary" onClick={pay} disabled={paying}>{paying ? 'Opening checkout…' : 'Pay in sandbox'}</button>
+            <button className="btn btn-primary" onClick={pay} disabled={paying}>{paying ? 'Preparing amount…' : 'Review VNPay payment'}</button>
           </>}
+          {quote && !order.isPaid && <div className="card" role="status">
+            <strong>VNPay sandbox total: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(quote.amountVnd)}</strong>
+            <p>Converted from {formatPrice(order.totalPrice)} at {quote.usdToVndRate.toLocaleString()} VND per USD.</p>
+            <p>Quote expires: {new Date(quote.expiresAt).toLocaleString()}</p>
+            <a className="btn btn-primary" href={quote.url}>Continue to VNPay sandbox</a>
+          </div>}
           {order.isPaid ? (
             <Message variant="success">Paid on {new Date(order.paidAt).toLocaleDateString()}</Message>
           ) : (

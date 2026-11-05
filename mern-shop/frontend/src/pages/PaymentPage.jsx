@@ -25,12 +25,12 @@ export default function PaymentPage() {
       <div className="card checkout-card">
         <h1>Payment Method</h1>
         <Message variant="info">
-          Sandbox payments only — no money is charged. You will be redirected to Stripe’s test checkout. Use test card 4242 4242 4242 4242, a future expiry, and any three-digit CVC.
+          VNPay sandbox payments only. After creating your order, review the VND amount and continue to VNPay using its sandbox test bank details. Catalogue prices remain in USD.
         </Message>
         <div className="payment-method">
           <label className="radio-label">
             <input type="radio" name="payment" defaultChecked readOnly />
-            Stripe sandbox (test card only)
+            VNPay sandbox
           </label>
         </div>
         <button type="button" className="btn btn-primary" onClick={continueHandler}>

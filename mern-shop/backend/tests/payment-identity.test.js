@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeEmail, verificationToken, hashToken } from '../utils/identity.js';
-import { checkoutParams, validPaidSession, getSandboxStripe } from '../utils/payments.js';
+import { paymentConfig, canonicalQuery, signPayment, verifyPayment, callbackParams, amountVnd, vietnamTime, checkoutUrl, matchesAttempt, paymentSucceeded } from '../utils/payments.js';
 
 test('email validation normalizes Gmail and rejects malformed addresses', () => {
   assert.equal(normalizeEmail(' Collector.Name+figures@GMAIL.COM '), 'collector.name+figures@gmail.com');
@@ -14,20 +14,42 @@ test('verification tokens are random, hashed, and expire', () => {
   assert.equal(hashToken(a.token), a.hash);
   assert.ok(a.expires > new Date() && a.expires < new Date(Date.now() + 31 * 60000));
 });
-test('sandbox checkout charges the full server total including tax and shipping', () => {
-  const order = { _id: 'order123', totalPrice: 37.5, stripeSessionId: 'cs_test_1' };
-  const params = checkoutParams(order, 'collector@gmail.com');
-  assert.equal(params.line_items[0].price_data.unit_amount, 3750);
-  const paid = { id: 'cs_test_1', mode: 'payment', payment_status: 'paid', currency: 'usd', amount_total: 3750, livemode: false, metadata: { orderId: 'order123' } };
-  assert.equal(validPaidSession(paid, order), true);
-  for (const change of [{ amount_total: 2500 }, { livemode: true }, { id: 'other' }, { payment_status: 'unpaid' }, { currency: 'vnd' }, { metadata: {} }]) assert.equal(validPaidSession({ ...paid, ...change }, order), false);
+test('VNPay signing has stable sorting/encoding and matches an independent HMAC fixture', () => {
+  const params = { vnp_TmnCode: 'TESTCODE', vnp_OrderInfo: 'Thanh toan L4L+Store', vnp_Amount: '1000000' };
+  assert.equal(canonicalQuery(params), 'vnp_Amount=1000000&vnp_OrderInfo=Thanh+toan+L4L%2BStore&vnp_TmnCode=TESTCODE');
+  const hash = '0af5c361daef178f7430c456953741b98c5e65d94c5300fc4a05d569e7ce87c2f7b8f25f8dc4c498d7265f96570e0341618881d94df98a515759d681aa889937';
+  assert.equal(signPayment(params, 'fixture-secret'), hash);
+  assert.equal(verifyPayment({ ...params, vnp_SecureHash: hash }, 'fixture-secret'), true);
+  assert.equal(verifyPayment({ ...params, vnp_Amount: '1', vnp_SecureHash: hash }, 'fixture-secret'), false);
+  assert.equal(verifyPayment({ ...params, vnp_SecureHash: 'bad' }, 'fixture-secret'), false);
+  assert.throws(() => callbackParams('/ipn?vnp_Amount=1&vnp_Amount=2'), /Invalid callback/);
 });
-test('live and missing Stripe keys are refused', () => {
-  const original = process.env.STRIPE_SECRET_KEY;
+test('VNPay quote converts server USD total once and sends VND multiplied by 100', () => {
+  const amount = amountVnd(37.5, 25000);
+  assert.equal(amount, 937500);
+  const attempt = { reference: 'ref123', amountVnd: amount, createdAt: new Date('2026-11-05T00:00:00Z'), expiresAt: new Date('2026-11-05T00:15:00Z') };
+  const config = { tmnCode: 'TESTCODE', secret: 'fixture-secret', returnUrl: 'http://localhost:5000/api/orders/vnpay/return' };
+  const url = new URL(checkoutUrl({ _id: 'order123' }, attempt, '::ffff:127.0.0.1', config));
+  assert.equal(url.origin, 'https://sandbox.vnpayment.vn');
+  assert.equal(url.searchParams.get('vnp_Amount'), '93750000');
+  assert.equal(url.searchParams.get('vnp_CurrCode'), 'VND');
+  assert.equal(vietnamTime(attempt.createdAt), '20261105070000');
+  assert.equal(url.searchParams.get('vnp_ExpireDate'), '20261105071500');
+  assert.equal(verifyPayment(Object.fromEntries(url.searchParams), config.secret), true);
+  const paid = { vnp_TmnCode: config.tmnCode, vnp_TxnRef: attempt.reference, vnp_Amount: '93750000', vnp_ResponseCode: '00', vnp_TransactionStatus: '00', vnp_TransactionNo: '123456' };
+  assert.equal(matchesAttempt(paid, attempt, config), true);
+  assert.equal(paymentSucceeded(paid), true);
+  for (const change of [{ vnp_Amount: '3750' }, { vnp_TmnCode: 'OTHER' }, { vnp_TxnRef: 'other' }, { vnp_CurrCode: 'USD' }]) assert.equal(matchesAttempt({ ...paid, ...change }, attempt, config), false);
+  for (const change of [{ vnp_ResponseCode: '24' }, { vnp_TransactionStatus: '01' }, { vnp_TransactionNo: '0' }]) assert.equal(paymentSucceeded({ ...paid, ...change }), false);
+  for (const args of [[0,25000], [37.5,0], [Infinity,25000], [1e15,25000]]) assert.throws(() => amountVnd(...args));
+});
+test('VNPay refuses unconfigured conversion and merchant settings', () => {
+  const keys = ['VNPAY_TMN_CODE', 'VNPAY_HASH_SECRET', 'VNPAY_RETURN_URL', 'VNPAY_USD_TO_VND_RATE'];
+  const original = keys.map(k => process.env[k]);
   try {
-    for (const key of ['', 'sk_live_fake', 'sk_test_placeholder']) {
-      process.env.STRIPE_SECRET_KEY = key;
-      assert.throws(getSandboxStripe, /test secret key/);
-    }
-  } finally { if (original === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = original; }
+    keys.forEach(k => delete process.env[k]);
+    assert.throws(paymentConfig, /not configured/);
+    Object.assign(process.env, { VNPAY_TMN_CODE: 'TESTCODE', VNPAY_HASH_SECRET: 'fake', VNPAY_RETURN_URL: 'http://localhost:5000/api/orders/vnpay/return', VNPAY_USD_TO_VND_RATE: '25000' });
+    assert.equal(paymentConfig().rate, 25000);
+  } finally { keys.forEach((k,i) => { if (original[i] === undefined) delete process.env[k]; else process.env[k] = original[i]; }); }
 });
