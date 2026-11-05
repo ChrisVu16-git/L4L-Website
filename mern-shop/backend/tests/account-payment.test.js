@@ -88,6 +88,15 @@ test('VNPay checkout/return/IPN checks amounts and fulfills concurrent notificat
   assert.equal((await Order.findById(order._id)).vnpayAttempts.length, 2);
   assert.equal((await deliver({ vnp_TmnCode: 'OTHER' })).body.RspCode, '97');
   assert.equal((await request(app).get('/api/orders/vnpay/return?vnp_SecureHash=bad')).status, 400);
+  const cancelled = await request(app).get(`/api/orders/vnpay/return?${query({ vnp_ResponseCode: '24', vnp_TransactionStatus: '02' })}`);
+  assert.equal(cancelled.status, 303);
+  assert.equal(new URL(cancelled.headers.location).pathname, `/product/${product._id}`);
+  assert.equal(new URL(cancelled.headers.location).searchParams.get('payment'), 'cancelled');
+  const forgedCancel = await request(app).get(`/api/orders/vnpay/return?${query({})}&vnp_ResponseCode=24`);
+  assert.equal(forgedCancel.status, 400);
+  const failed = await request(app).get(`/api/orders/vnpay/return?${query({ vnp_ResponseCode: '51', vnp_TransactionStatus: '02' })}`);
+  assert.equal(new URL(failed.headers.location).pathname, `/order/${order._id}`);
+  assert.equal(new URL(failed.headers.location).searchParams.get('payment'), 'failed');
   const returned = await request(app).get(`/api/orders/vnpay/return?${query({})}`);
   assert.equal(returned.status, 303); assert.match(returned.headers.location, /payment=pending/);
   assert.equal((await Order.findById(order._id)).isPaid, false);
