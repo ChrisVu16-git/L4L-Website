@@ -2,10 +2,20 @@ services:
   mongodb:
     image: mongo:7
     container_name: mern-shop-mongo
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval 'try { rs.status() } catch (error) { if (error.codeName !== "NotYetInitialized") throw error; rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]}) }; if (!db.hello().isWritablePrimary) quit(1)'
+      interval: 2s
+      timeout: 10s
+      retries: 30
+      start_period: 5s
 
 volumes:
   mongo_data:

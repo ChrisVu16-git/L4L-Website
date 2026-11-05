@@ -99,88 +99,154 @@ R2 bucket CORS is separate from the Express API's CORS configuration. If the fro
 
 ### Prerequisites
 
-- Node.js and npm
-- MongoDB (MongoDB Atlas or a local MongoDB instance)
-- A Cloudflare account with an R2 bucket and credentials for image uploads
+- Node.js 22 LTS and npm (the same Node major used by CI)
+- Docker with Docker Compose v2, or your own MongoDB Atlas database
+- R2 credentials only for image uploads; VNPay sandbox merchant credentials only
+  for external payments. Neither is required to start the shop.
 
-### 1. Clone and install dependencies
-
-From your terminal:
+### 1. Clone the deployment branch and install
 
 ```bash
-git clone https://github.com/ChrisVu16-git/L4L-Website.git
+git clone --branch l4lstore-deployment --single-branch https://github.com/ChrisVu16-git/L4L-Website.git
 cd L4L-Website/mern-shop
 npm install
 npm run install:all
 ```
 
-### 2. Configure the backend
+Already cloned? Commit or stash local edits first, then run from the repository
+root. Do not reset or discard your work to resolve a pull error:
 
-Create `mern-shop/backend/.env` with your own values:
-
-```env
-PORT=5000
-MONGODB_URI=mongodb://127.0.0.1:27017/mern-shop
-JWT_SECRET=replace_with_a_long_random_secret
-CLIENT_URL=http://localhost:5173
-
-R2_ACCOUNT_ID=your_cloudflare_account_id
-R2_ACCESS_KEY_ID=your_r2_access_key_id
-R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
-R2_BUCKET_NAME=your_r2_bucket_name
-R2_PUBLIC_URL=https://your-public-r2-domain
+```bash
+git fetch origin
+git switch l4lstore-deployment
+git pull --ff-only origin l4lstore-deployment
+cd mern-shop
+npm install
+npm run install:all
 ```
 
-Replace the MongoDB and R2 placeholders with your own values. Use a strong, private `JWT_SECRET`. Never commit real credentials or `.env` files.
+All remaining commands below run from `L4L-Website/mern-shop` unless stated
+otherwise. There is no `package.json` at the repository root.
 
-### 3. Configure the frontend
+### 2. Start MongoDB
 
-Create `mern-shop/frontend/.env`:
+```bash
+docker compose up -d --wait --wait-timeout 90
+```
+
+Compose starts MongoDB 7, initializes the single-node `rs0` replica set and waits
+for a writable primary. Port 27017 is bound to localhost only. Payments and
+integration tests use transactions, which require a replica set or Atlas.
+If port 27017 is already occupied by another local MongoDB, stop that service or
+use Atlas instead. Inspect failures with `docker compose logs mongodb`.
+
+Alternatively, use your own Atlas connection strings with distinct development
+and test database names. Configure the Atlas database user and network access
+for your machine. Do not use the deployed shop's production database for tests
+or seeding.
+
+### 3. Create environment files
+
+macOS/Linux/Git Bash:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+Replace `JWT_SECRET` in `backend/.env` with a private random value. Generate one:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+The example uses these local database settings:
+
+```env
+MONGODB_URI=mongodb://127.0.0.1:27017/mern-shop?replicaSet=rs0&directConnection=true
+TEST_MONGO_URI=mongodb://127.0.0.1:27017/mern-shop-test?replicaSet=rs0&directConnection=true
+CLIENT_URL=http://localhost:5173
+```
+
+For Atlas, replace both database URIs with your own distinct development/test
+names. R2 example values are placeholders: configure real values only when
+using image uploads. Leave VNPay merchant values blank until configuring payment.
+Email confirmation is disabled; SMTP and Resend are not required.
+
+`frontend/.env` should contain:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
 ```
 
-Vite reads `VITE_*` variables at build time. Rebuild and redeploy the frontend after changing the deployed API URL.
+Vite reads environment values at startup/build time. Restart it after changes.
+Never copy backend secrets into frontend variables or commit `.env` files.
 
-### 4. Start the application
+### 4. Optionally seed sample data
 
-From `mern-shop/`:
+```bash
+npm run seed
+```
+
+**Seeding deletes users and products in the database selected by `MONGODB_URI`.**
+Use an isolated local/development database; skip seeding to preserve existing data.
+It creates local accounts `admin@mernshop.com` / `admin123` and
+`demo@mernshop.com` / `demo123`. The sample catalogue contains legacy USD prices
+that the API displays in VND. These demonstration accounts are for local use only.
+
+### 5. Start both services
 
 ```bash
 npm run dev
 ```
 
-Default local URLs:
-
 - Frontend: http://localhost:5173
 - Backend health: http://localhost:5000/api/health
 - Products API: http://localhost:5000/api/products
 
-The backend connects to MongoDB when it starts. If database-backed routes fail, check `MONGODB_URI` and the backend logs. A successful health response alone does not prove database connectivity.
+Health alone does not prove database connectivity: also load products. An empty
+list is valid if seeding was skipped.
 
-## Backend tests
-
-The backend tests use Node.js's built-in test runner and Supertest. Configure a separate test database in `mern-shop/backend/.env`:
-
-```env
-TEST_MONGO_URI=mongodb://127.0.0.1:27017/mern-shop-test
-```
-
-Ensure `MONGODB_URI`, `TEST_MONGO_URI`, `JWT_SECRET`, and the R2 environment variables are configured. Then run:
+### 6. Run checks in another terminal (from `mern-shop`)
 
 ```bash
-cd backend
-npm test
-```
-
-Run tests only against a database intended for testing, not production data; tests may create and delete test records.
-
-To build the frontend, run from `mern-shop/`:
-
-```bash
+npm test --prefix backend
+npm test --prefix frontend
 npm run build
 ```
+
+The backend npm test script loads `backend/.env` for every test process.
+Use a separate disposable `TEST_MONGO_URI`: tests create/delete fixture records.
+Tests use fake R2 values and VNPay fixtures, so real provider keys are unnecessary.
+
+### Local VNPay testing
+
+Set your own sandbox terminal and hash secret in `backend/.env`. Keep
+`CLIENT_URL=http://localhost:5173` and use the local return URL
+`http://localhost:5000/api/orders/vnpay/return`. External payment confirmation
+also requires a public HTTPS tunnel to port 5000 and that tunnel's IPN URL
+registered with VNPay; VNPay cannot call your machine's localhost.
+See [VNPay sandbox setup](#vnpay-sandbox-payments). Browsing, login, order placement
+and fixture-based payment tests do not require a merchant account.
+
+### Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| Git cannot find the repository | Use the exact owner/repo URL above; the folder is `L4L-Website`. |
+| `ENOENT ... package.json` | Run install/dev/build from `L4L-Website/mern-shop`, not the repo root. |
+| `concurrently` not found | Run the parent `npm install` before starting both services. |
+| Mongo connection refused / server selection timeout | Start MongoDB; check port 27017 or your Atlas credentials/network access. |
+| Transactions require a replica set | Use the bundled Compose setup or Atlas, not standalone MongoDB. |
+| `TEST_MONGO_URI is required` | Copy the backend environment example and run the backend npm test script. |
+| Payment unavailable / image upload fails | Configure your own VNPay/R2 credentials for those optional features. |
 
 ## Continuous integration
 
