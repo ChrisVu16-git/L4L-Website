@@ -39,10 +39,9 @@ export default function PlaceOrderPage() {
         }),
       });
 
-      const { url } = await apiFetch(`/orders/${order._id}/checkout`, { method: 'POST' });
       clearCart();
       localStorage.removeItem('shippingAddress');
-      window.location.href = url;
+      navigate(`/order/${order._id}`);
     } catch (err) {
       setError(err.message);
       setLoading(false);
@@ -65,7 +64,7 @@ export default function PlaceOrderPage() {
             {shippingAddress.country}
           </p>
           <h2>Payment</h2>
-          <p>Stripe (Card)</p>
+          <p>Stripe sandbox (test card)</p>
           <h2>Items</h2>
           {cartItems.map((item) => (
             <div key={item._id} className="summary-row">
@@ -102,7 +101,7 @@ export default function PlaceOrderPage() {
             disabled={loading}
             onClick={placeOrderHandler}
           >
-            {loading ? 'Processing...' : 'Pay with Stripe'}
+            {loading ? 'Processing...' : 'Create sandbox order'}
           </button>
         </div>
       </div>

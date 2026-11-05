@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import {
   addOrderItems,
   getOrderById,
@@ -11,13 +12,18 @@ import {
 import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
+router.param('id', (req, res, next, id) => {
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid order ID' });
+  next();
+});
+const safe = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-router.post('/', protect, addOrderItems);
-router.get('/myorders', protect, getMyOrders);
-router.get('/', protect, admin, getOrders);
-router.get('/:id', protect, getOrderById);
-router.get('/:id/pay', protect, markOrderPaid);
-router.post('/:id/checkout', protect, createCheckoutSession);
-router.put('/:id/deliver', protect, admin, updateOrderToDelivered);
+router.post('/', protect, safe(addOrderItems));
+router.get('/myorders', protect, safe(getMyOrders));
+router.get('/', protect, admin, safe(getOrders));
+router.get('/:id', protect, safe(getOrderById));
+router.get('/:id/pay', protect, safe(markOrderPaid));
+router.post('/:id/checkout', protect, safe(createCheckoutSession));
+router.put('/:id/deliver', protect, admin, safe(updateOrderToDelivered));
 
 export default router;

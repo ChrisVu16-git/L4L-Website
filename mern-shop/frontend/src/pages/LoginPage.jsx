@@ -59,6 +59,7 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+        <p><Link to="/register">Resend email confirmation</Link></p>
         <p className="auth-switch">
           New customer? <Link to="/register">Create an account</Link>
         </p>

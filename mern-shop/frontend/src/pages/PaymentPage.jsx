@@ -25,12 +25,12 @@ export default function PaymentPage() {
       <div className="card checkout-card">
         <h1>Payment Method</h1>
         <Message variant="info">
-          Payments are processed securely via Stripe. You will be redirected to complete payment after placing your order.
+          Sandbox payments only — no money is charged. You will be redirected to Stripe’s test checkout. Use test card 4242 4242 4242 4242, a future expiry, and any three-digit CVC.
         </Message>
         <div className="payment-method">
           <label className="radio-label">
             <input type="radio" name="payment" defaultChecked readOnly />
-            Stripe (Credit / Debit Card)
+            Stripe sandbox (test card only)
           </label>
         </div>
         <button type="button" className="btn btn-primary" onClick={continueHandler}>

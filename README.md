@@ -7,7 +7,7 @@ A full-stack e-commerce web application built with React and Node.js. This proje
 **Products API:** [Browse product data](https://l4l-website.onrender.com/api/products)  
 **Source code:** [ChrisVu16-git/L4L-Website](https://github.com/ChrisVu16-git/L4L-Website)
 
-> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. Payment processing is not currently deployed or verified for real transactions. Do not enter real payment details.
+> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. The new sandbox payment and email-confirmation flows require backend configuration and deployment. They are not verified against a real Stripe sandbox or SMTP sender yet. Do not enter real payment details.
 
 ## Features
 
@@ -198,7 +198,7 @@ cancels older runs for the same ref. No path filters are used, so both checks
 also report on documentation-only pull requests.
 
 **Required secrets: none for these checks.** Backend CI starts a disposable
-MongoDB 7 service, waits for its health check, and sets `TEST_MONGO_URI` to its
+MongoDB 7 single-node replica set in Docker, waits for a writable primary, and sets `TEST_MONGO_URI` to its
 local test database. The suite creates and removes records. Never replace this
 URI with a production database. `JWT_SECRET` and all five `R2_*` values in the
 workflow are deliberately fake test values. Existing R2 cleanup tests stub the
@@ -213,10 +213,10 @@ Automated frontend/browser tests are still a separate next step. Manual workflow
 launches may only appear in GitHub's UI after the workflow exists on the default
 branch; push/PR triggers are aligned to `l4lstore-deployment`.
 
-Validation for this change: frontend `npm ci` and `npm run build` passed locally;
-backend `npm ci` and `node --test tests/app.test.js` passed (three tests). The full
-MongoDB-dependent suite and GitHub-hosted workflows have not yet been verified.
-Check the actual Actions run before claiming that CI passes or requiring the checks.
+The initial CI/storefront commit passed both GitHub Actions workflows. The subsequent
+email-confirmation and sandbox payment changes add regression tests, including signed
+webhook replay and transaction checks. Inspect the Actions run for the latest PR
+commit before claiming that these expanded checks pass.
 
 ## Figure storefront
 
@@ -226,7 +226,95 @@ shown with `object-fit: contain`. It still reads the existing catalogue API;
 add actual figure products and their images through the admin page. The UI does
 not replace database products with demo inventory. The hero displays the first
 product from the current results, with a brand fallback when none is available.
-The design is implemented in React/CSS; a Figma handoff has not yet been created.
+Editable design screens: [L4LStore in Figma](https://www.figma.com/design/1BuVMYEOqGJMVy1LMfxPz5?node-id=4-180).
+The Figma board includes the catalogue empty state, signup, email confirmation,
+and sandbox order screens. It uses editable text and imported input/button instances.
+It is a design handoff, not a verified browser capture of the deployed site.
+
+## Accounts and email confirmation
+
+Register at `/register` with your name, email and a password of at least eight
+characters (maximum 72 UTF-8 bytes). The form suggests `@gmail.com` when you type
+an address without a domain; other providers are accepted. Server validation checks
+address syntax, not mailbox existence. Ownership is established only by following
+the emailed confirmation link and pressing **Confirm email**. It expires after
+30 minutes and can be used once. Only the SHA-256 token hash is stored in MongoDB;
+raw tokens are never returned by the API. Registration does not sign users in.
+
+Set the following **backend-only** environment values (see `backend/.env.example`):
+
+| Variable | Purpose |
+|---|---|
+| `SMTP_HOST`, `SMTP_PORT` | Mail server and port, usually 587 (STARTTLS) or 465 (TLS) |
+| `SMTP_USER`, `SMTP_PASS` | SMTP sender credentials; use a Gmail App Password when using Gmail SMTP |
+| `MAIL_FROM` | Authorized sender address, e.g. `L4LStore <your-sender@gmail.com>` |
+| `CLIENT_URL` | Trusted frontend origin used in email links and Stripe return URLs |
+| `JWT_SECRET` | Private application signing secret |
+
+These belong in Render environment settings, never frontend `VITE_*` values or GitHub
+CI secrets. Gmail SMTP commonly uses `smtp.gmail.com`; enable two-step verification
+and create an App Password for the sender. Never use your normal Gmail password.
+No personal Gmail API or Google OAuth login is needed for this SMTP integration.
+A transactional mail service is preferable as traffic grows. SMTP submission does
+not guarantee inbox delivery; check spam and provider logs.
+
+`POST /api/users/register` queues no background job: it sends the email during the
+request. Missing SMTP configuration returns 503 before creating an account. A send
+failure after account creation leaves the account unverified; use **Resend confirmation**.
+`POST /api/users/resend-verification` rotates the token, at most once per minute
+per account. `POST /api/users/verify-email` accepts `{ token }`. Authentication and
+verification endpoints share a 20-request / 15-minute per-IP limiter. Its in-memory
+store resets on restart and is not shared between multiple server instances.
+
+Existing accounts are unverified by default and must request a confirmation before
+signing in. Previously issued JWTs are not revoked by this migration, but order creation
+and checkout independently require a verified database user. No admin is automatically
+marked verified. Confirm the admin account before deploying this change broadly.
+
+## Sandbox payments
+
+Use a Stripe sandbox/test account and configure these backend values:
+
+```env
+STRIPE_SECRET_KEY=sk_test_replace_me
+STRIPE_WEBHOOK_SECRET=whsec_replace_me
+CLIENT_URL=http://localhost:5173
+```
+
+Live keys are refused. This hosted Checkout integration needs no frontend publishable
+key and handles no card data in the application. Create an order, then use **Pay in
+sandbox** on its order page. The amount comes from the saved server-side order total,
+including shipping and tax. The frontend does not control the charged price.
+Existing open Checkout sessions are reused; session creation uses an idempotency key.
+An unpaid order remains accessible from **My Orders** after cancellation or errors.
+
+For local testing, forward Stripe events using your authenticated Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:5000/api/orders/webhook
+```
+
+Use the CLI's `whsec_...` value locally. For Render, configure a **test-mode** endpoint
+at `https://l4l-website.onrender.com/api/orders/webhook`, subscribe to
+`checkout.session.completed`, and use that endpoint's signing secret on Render.
+The raw-body webhook route must remain before `express.json()`. Test card:
+`4242 4242 4242 4242`, any future expiry, and any three-digit CVC. Never use a real card.
+
+Only a signed, test-mode `checkout.session.completed` with `payment_status=paid`,
+matching stored session ID, USD currency and exact total can fulfill an order.
+Returning to the success URL alone cannot mark it paid. Card payments are the only
+method enabled. Stock decrements and paid status commit in one MongoDB transaction;
+MongoDB must be a replica set (Atlas supports transactions). Standalone local MongoDB
+is sufficient for browsing, but cannot fulfill payments. CI uses a single-node replica
+set to test transactions and concurrent duplicate webhook delivery.
+
+Stock is checked before checkout but is not reserved. If stock runs out before the
+webhook commits, fulfillment rolls back and returns 500 so Stripe can retry; manually
+reconcile/restock or refund the test payment before replaying the event. Refund and
+reconciliation UI, production mail delivery, and live payments are outside this change.
+No real Stripe transaction or Gmail delivery has been verified without provider secrets.
+The automated suite signs fixture webhooks and stubs SMTP; it never sends email or
+charges a payment provider.
 
 ## API overview
 
@@ -279,7 +367,7 @@ The following checks were completed during deployment and R2 migration testing:
 
 ## Known limitations and next steps
 
-- Payment processing is not ready for real transactions.
+- Payments are intentionally sandbox-only. Live keys are rejected; refunds, stock reservations, and reconciliation tooling are not implemented.
 - Add automated frontend and end-to-end tests.
 - Confirm the new GitHub Actions checks on a pull request before making them required branch checks.
 - Expand API documentation with example request and response bodies.
