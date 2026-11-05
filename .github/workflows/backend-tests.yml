@@ -4,13 +4,22 @@ on:
   push:
     branches:
       - l4lstore-deployment
+  workflow_dispatch:
   pull_request:
     branches:
       - l4lstore-deployment
 
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     services:
       mongodb:
@@ -30,7 +39,12 @@ jobs:
     env:
       TEST_MONGO_URI: mongodb://127.0.0.1:27017/L4Lstore_test
       JWT_SECRET: ci-only-test-secret
-      CLOUDINARY_URL: cloudinary://123456:test-secret@test-cloud
+      NODE_ENV: test
+      R2_ACCOUNT_ID: ci-account
+      R2_ACCESS_KEY_ID: ci-access-key
+      R2_SECRET_ACCESS_KEY: ci-secret-key
+      R2_BUCKET_NAME: ci-bucket
+      R2_PUBLIC_URL: https://images.example.test
 
     steps:
       - name: Check out repository
