@@ -9,12 +9,12 @@ export default function OrderPage() {
   const [params] = useSearchParams();
   const [order,setOrder] = useState(null), [loading,setLoading] = useState(true), [error,setError] = useState('');
   const [accessVersion,setAccessVersion] = useState(0), [lookupCode,setLookupCode] = useState(''), [errorCode,setErrorCode] = useState('');
-  const [quote,setQuote] = useState(null), [paying,setPaying] = useState(false), [paymentError,setPaymentError] = useState('');
+  const [paying,setPaying] = useState(false), [paymentError,setPaymentError] = useState('');
   const returned = params.get('payment') === 'pending', failed = params.get('payment') === 'failed';
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      setLoading(true); setError(''); setErrorCode(''); setQuote(null);
+      setLoading(true); setError(''); setErrorCode('');
       try {
         let data = await apiFetch(`/orders/${id}`);
         if (returned && !data.isPaid) for (let i=0;i<5;i++) {
@@ -30,7 +30,10 @@ export default function OrderPage() {
   }, [id,returned,accessVersion]);
   const pay = async () => {
     setPaying(true); setPaymentError('');
-    try { setQuote(await apiFetch(`/orders/${id}/checkout`, { method:'POST' })); }
+    try {
+      const checkout = await apiFetch(`/orders/${id}/checkout`, { method:'POST' });
+      window.location.assign(checkout.url);
+    }
     catch (err) { setPaymentError(err.message); } finally { setPaying(false); }
   };
   if (loading) return <Loader />;
@@ -60,9 +63,8 @@ export default function OrderPage() {
         {order.deliveredAt && <p>Ngày giao: {new Date(order.deliveredAt).toLocaleDateString('vi-VN')}</p>}
       </div>
       <div className="card"><h2>Thanh toán</h2><p>{order.isPaid ? 'Đã thanh toán' : 'VNPay thử nghiệm — không dùng thẻ thật'}</p>
-        {!order.isPaid && status !== 'cancelled' && <><p>Kiểm tra tổng tiền trước khi chuyển đến VNPay.</p>{paymentError && <Message variant="error">{paymentError}</Message>}
-          <button className="btn btn-primary" disabled={paying} onClick={pay}>{paying ? 'Đang chuẩn bị…' : 'Thanh toán qua VNPay'}</button></>}
-        {quote && !order.isPaid && status !== 'cancelled' && <div role="status"><p><strong>Số tiền thanh toán: {formatPrice(quote.amountVnd)}</strong></p><p>Liên kết có hiệu lực đến {new Date(quote.expiresAt).toLocaleString('vi-VN')}</p><a className="btn btn-primary" href={quote.url}>Tiếp tục đến VNPay thử nghiệm</a></div>}
+        {!order.isPaid && status !== 'cancelled' && <><p>Số tiền thanh toán: <strong>{formatPrice(order.totalPrice)}</strong></p>{paymentError && <Message variant="error">{paymentError}</Message>}
+          <button className="btn btn-primary" disabled={paying} onClick={pay}>{paying ? 'Đang chuẩn bị…' : 'Thanh toán qua VNPay thử nghiệm'}</button></>}
         {order.isPaid && <Message variant="success">Thanh toán ngày {new Date(order.paidAt).toLocaleDateString('vi-VN')}</Message>}
       </div>
       <div className="card order-items-card"><h2>Sản phẩm đã đặt</h2>{order.orderItems.map(item => <div className="order-item" key={item.product}><img src={item.image} alt={item.name} /><div><Link to={`/product/${item.product}`}>{item.name}</Link><p>{item.qty} × {formatPrice(item.price)} = {formatPrice(item.qty*item.price)}</p></div></div>)}</div>
