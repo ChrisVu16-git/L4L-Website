@@ -10,7 +10,6 @@ export const addOrderItems = async (req, res) => {
   try {
   const { orderItems, shippingAddress } = req.body;
   const paymentMethod = 'vnpay';
-  if (!req.user.emailVerified) return res.status(403).json({ message: 'Confirm your email before checkout.' });
   if (!shippingAddress || ['address', 'city', 'postalCode', 'country'].some(key => typeof shippingAddress[key] !== 'string' || !shippingAddress[key].trim() || shippingAddress[key].length > 200)) {
     return res.status(400).json({ message: 'Enter a complete shipping address.' });
   }
@@ -96,7 +95,6 @@ export const updateOrderToDelivered = async (req, res) => {
 
 export const createCheckoutSession = async (req, res, next) => {
   try {
-    if (!req.user.emailVerified) return res.status(403).json({ message: 'Confirm your email before checkout.' });
     const config = paymentConfig();
     let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });

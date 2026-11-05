@@ -7,7 +7,7 @@ A full-stack e-commerce web application built with React and Node.js. This proje
 **Products API:** [Browse product data](https://l4l-website.onrender.com/api/products)  
 **Source code:** [ChrisVu16-git/L4L-Website](https://github.com/ChrisVu16-git/L4L-Website)
 
-> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. The new sandbox payment and email-confirmation flows require backend configuration and deployment. They are not verified against a real VNPay sandbox or SMTP sender yet. Do not enter real payment details.
+> **Status:** The frontend is deployed on Vercel and the backend is deployed on Render. Product images are stored in Cloudflare R2. Sandbox payments require backend configuration. Email confirmation is temporarily disabled. They are not verified against a real VNPay sandbox or SMTP sender yet. Do not enter real payment details.
 
 ## Features
 
@@ -231,82 +231,23 @@ The Figma board includes the catalogue empty state, signup, email confirmation,
 and sandbox order screens. It uses editable text and imported input/button instances.
 It is a design handoff, not a verified browser capture of the deployed site.
 
-## Accounts and email confirmation
+## Accounts (email confirmation temporarily disabled)
 
-Register at `/register` with your name, email and a password of at least eight
-characters (maximum 72 UTF-8 bytes). The form suggests `@gmail.com` when you type
-an address without a domain; the field label is simply **Email**. Server validation checks
-address syntax, not mailbox existence. Ownership is established only by following
-the emailed confirmation link and pressing **Confirm email**. It expires after
-30 minutes and can be used once. Only the SHA-256 token hash is stored in MongoDB;
-raw tokens are never returned by the API. Registration does not sign users in.
+Registration validates email format and password strength, creates the account,
+and signs the user in immediately. SMTP/Resend configuration is not required.
+Existing accounts can sign in and check out even when `emailVerified` is false.
+Password hashing, JWT authentication, admin authorization, and authentication
+rate limits remain active. No user is marked email-verified without proof.
 
-### Email hosting configuration
+Signup/login have no confirmation or resend controls. Previously emailed
+`/verify-email` links redirect to sign-in. The backend `/api/users/verify-email`
+and `/api/users/resend-verification` endpoints return HTTP 410 while disabled;
+no confirmation emails are sent and old tokens are not consumed.
 
-The Vercel frontend calls `https://l4l-website.onrender.com/api`; email is sent by
-the **Render backend**, not Vercel. The error `Account email delivery is not
-configured` means no complete backend sender/provider configuration is available.
-Changing only Vercel environment variables cannot fix backend delivery.
-
-Render Free blocks outbound SMTP ports 25, 465 and 587. Use the supported HTTPS
-Resend transport on that plan, or use SMTP on a host/plan that permits it.
-
-**HTTPS transport (Render Free compatible):** set these in the backend Render
-service's Environment settings, then redeploy:
-
-```env
-RESEND_API_KEY=your_private_sending_key
-MAIL_FROM=L4LStore <accounts@your-verified-domain.example>
-CLIENT_URL=https://l4-l-website.vercel.app
-```
-
-Authorize your sending domain/address with Resend. A Gmail address can receive
-confirmation emails but cannot be used as an arbitrary Resend sender. Resend's
-onboarding/test sender is restricted; for sending to arbitrary signup addresses,
-verify your own domain. Check provider logs for acceptance/bounces and the recipient's
-spam folder. The API transport verifies a successful provider response with an email ID;
-it does not treat provider rejection as a sent confirmation. An API acknowledgement
-still does not prove delivery to the recipient's inbox.
-
-**SMTP alternative:** leave `RESEND_API_KEY` unset and configure `SMTP_HOST`,
-`SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, and `CLIENT_URL` on a host with
-SMTP access. Gmail SMTP uses an App Password, not the normal account password.
-If `RESEND_API_KEY` is configured, HTTPS takes precedence; there is no silent SMTP
-fallback when the API provider rejects a send.
-
-Keep all provider keys and SMTP passwords in backend environment settings. Never
-place them in Vercel `VITE_*` variables, source code, PR descriptions or CI secrets.
-Tests mock delivery and require no real email credentials.
-
-Official references: [Render Free limits](https://render.com/docs/free) and
-[Resend email API](https://resend.com/docs/api-reference/emails/send-email).
-
-### Confirmation controls
-
-The initial registration form shows neither a send nor resend button. After a
-registration response indicates a pending verification, it switches to a confirmation
-panel for the submitted address and offers **Resend confirmation**. Missing email
-configuration leaves the signup form open and does not offer resend. If an account
-was created but sending failed, a structured `verificationPending` error enables
-resend recovery. Failed sends release the per-account resend cooldown so an immediate
-retry can be attempted (the shared IP rate limit still applies).
-
-Login offers **Resend confirmation** only after correct credentials identify an
-unverified account. Editing the email hides it again. No public mailbox-existence
-lookup is added; format validation cannot prove a Gmail mailbox exists.
-
-`POST /api/users/register` queues no background job: it sends the email during the
-request. Missing SMTP configuration returns 503 before creating an account. A send
-failure after account creation leaves the account unverified; use **Resend confirmation**.
-`POST /api/users/resend-verification` rotates the token, at most once per minute
-per account. `POST /api/users/verify-email` accepts `{ token }`. Authentication and
-verification endpoints share a 20-request / 15-minute per-IP limiter. Its in-memory
-store resets on restart and is not shared between multiple server instances.
-
-Existing accounts are unverified by default and must request a confirmation before
-signing in. Previously issued JWTs are not revoked by this migration, but order creation
-and checkout independently require a verified database user. No admin is automatically
-marked verified. Confirm the admin account before deploying this change broadly.
+The dormant email transport utilities and their tests remain for possible future
+re-enablement. Before restoring confirmation, configure a sender on Render and
+restore the coordinated registration/login/checkout checks and frontend flow.
+The current version does not need `RESEND_API_KEY`, `MAIL_FROM` or SMTP credentials.
 
 ## VNPay sandbox payments
 
