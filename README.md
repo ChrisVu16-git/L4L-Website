@@ -182,6 +182,52 @@ To build the frontend, run from `mern-shop/`:
 npm run build
 ```
 
+## Continuous integration
+
+GitHub Actions runs two independent workflows on pushes to `l4lstore-deployment`,
+on pull requests targeting that branch, and via `workflow_dispatch`:
+
+| Check | Working directory | Commands |
+|---|---|---|
+| Backend Tests / test | `mern-shop/backend` | `npm ci`, `npm test` (`node --test`) |
+| Frontend Build / build | `mern-shop/frontend` | `npm ci`, `npm run build` (`vite build`) |
+
+Both use Node.js 22 and cache npm downloads using the corresponding committed
+lockfile. Each has a ten-minute timeout, read-only repository permissions, and
+cancels older runs for the same ref. No path filters are used, so both checks
+also report on documentation-only pull requests.
+
+**Required secrets: none for these checks.** Backend CI starts a disposable
+MongoDB 7 service, waits for its health check, and sets `TEST_MONGO_URI` to its
+local test database. The suite creates and removes records. Never replace this
+URI with a production database. `JWT_SECRET` and all five `R2_*` values in the
+workflow are deliberately fake test values. Existing R2 cleanup tests stub the
+S3 client's `send` method; CI does not verify real R2 uploads, bucket CORS, or
+live image deletion. Do not add production R2 credentials to this workflow.
+
+Frontend CI uses `VITE_API_URL=/api` solely to check compilation. Vite exposes
+`VITE_*` values in browser code, so these must never contain secrets. The build
+neither starts nor calls the deployed API and does not deploy to Vercel or Render.
+Deployment credentials and environment configuration remain with those hosts.
+Automated frontend/browser tests are still a separate next step. Manual workflow
+launches may only appear in GitHub's UI after the workflow exists on the default
+branch; push/PR triggers are aligned to `l4lstore-deployment`.
+
+Validation for this change: frontend `npm ci` and `npm run build` passed locally;
+backend `npm ci` and `node --test tests/app.test.js` passed (three tests). The full
+MongoDB-dependent suite and GitHub-hosted workflows have not yet been verified.
+Check the actual Actions run before claiming that CI passes or requiring the checks.
+
+## Figure storefront
+
+The homepage now presents L4LStore as a figure and collectibles shop, with a
+responsive collection display, search/category controls, and product images
+shown with `object-fit: contain`. It still reads the existing catalogue API;
+add actual figure products and their images through the admin page. The UI does
+not replace database products with demo inventory. The hero displays the first
+product from the current results, with a brand fallback when none is available.
+The design is implemented in React/CSS; a Figma handoff has not yet been created.
+
 ## API overview
 
 All endpoints are mounted under `/api`.
@@ -235,7 +281,7 @@ The following checks were completed during deployment and R2 migration testing:
 
 - Payment processing is not ready for real transactions.
 - Add automated frontend and end-to-end tests.
-- Add CI checks for backend tests and frontend builds.
+- Confirm the new GitHub Actions checks on a pull request before making them required branch checks.
 - Expand API documentation with example request and response bodies.
 
 ## License

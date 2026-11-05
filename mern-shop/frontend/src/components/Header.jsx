@@ -16,11 +16,11 @@ export default function Header() {
     <header className="header">
       <div className="container header-inner">
         <Link to="/" className="logo">
-          <span className="logo-icon">🛍</span>
-          MERN Shop
+          <span className="logo-icon">✦</span>
+          L4LStore
         </Link>
 
-        <nav className="nav">
+        <nav className="nav" aria-label="Main navigation">
           <Link to="/">Shop</Link>
           {user ? (
             <>
