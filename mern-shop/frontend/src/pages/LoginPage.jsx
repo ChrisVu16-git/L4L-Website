@@ -30,7 +30,7 @@ export default function LoginPage() {
   return (
     <div className="page container auth-page">
       <div className="auth-card card">
-        <h1>Sign In</h1>
+        <h1>Đăng nhập</h1>
         {error && <Message variant="error">{error}</Message>}
         <form onSubmit={submitHandler}>
           <label>
@@ -47,7 +47,7 @@ export default function LoginPage() {
             />
           </label>
           <label>
-            Password
+            Mật khẩu
             <input
               type="password"
               autoComplete="current-password"
@@ -60,11 +60,11 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? "Đang đăng nhập…" : "Đăng nhập"}
           </button>
         </form>
         <p className="auth-switch">
-          New customer? <Link to="/register">Create an account</Link>
+          Bạn chưa có tài khoản? <Link to="/register">Tạo tài khoản</Link>
         </p>
 
       </div>

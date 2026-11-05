@@ -24,8 +24,8 @@ test('VNPay signing has stable sorting/encoding and matches an independent HMAC 
   assert.equal(verifyPayment({ ...params, vnp_SecureHash: 'bad' }, 'fixture-secret'), false);
   assert.throws(() => callbackParams('/ipn?vnp_Amount=1&vnp_Amount=2'), /Invalid callback/);
 });
-test('VNPay quote converts server USD total once and sends VND multiplied by 100', () => {
-  const amount = amountVnd(37.5, 25000);
+test('VNPay sends whole VND totals multiplied by 100 without another FX conversion', () => {
+  const amount = amountVnd(937500);
   assert.equal(amount, 937500);
   const attempt = { reference: 'ref123', amountVnd: amount, createdAt: new Date('2026-11-05T00:00:00Z'), expiresAt: new Date('2026-11-05T00:15:00Z') };
   const config = { tmnCode: 'TESTCODE', secret: 'fixture-secret', returnUrl: 'http://localhost:5000/api/orders/vnpay/return' };
@@ -41,15 +41,15 @@ test('VNPay quote converts server USD total once and sends VND multiplied by 100
   assert.equal(paymentSucceeded(paid), true);
   for (const change of [{ vnp_Amount: '3750' }, { vnp_TmnCode: 'OTHER' }, { vnp_TxnRef: 'other' }, { vnp_CurrCode: 'USD' }]) assert.equal(matchesAttempt({ ...paid, ...change }, attempt, config), false);
   for (const change of [{ vnp_ResponseCode: '24' }, { vnp_TransactionStatus: '01' }, { vnp_TransactionNo: '0' }]) assert.equal(paymentSucceeded({ ...paid, ...change }), false);
-  for (const args of [[0,25000], [37.5,0], [Infinity,25000], [1e15,25000]]) assert.throws(() => amountVnd(...args));
+  for (const args of [[0], [37.5], [Infinity], [1e15]]) assert.throws(() => amountVnd(...args));
 });
-test('VNPay refuses unconfigured conversion and merchant settings', () => {
+test('VNPay refuses unconfigured merchant settings', () => {
   const keys = ['VNPAY_TMN_CODE', 'VNPAY_HASH_SECRET', 'VNPAY_RETURN_URL', 'VNPAY_USD_TO_VND_RATE'];
   const original = keys.map(k => process.env[k]);
   try {
     keys.forEach(k => delete process.env[k]);
     assert.throws(paymentConfig, /not configured/);
     Object.assign(process.env, { VNPAY_TMN_CODE: 'TESTCODE', VNPAY_HASH_SECRET: 'fake', VNPAY_RETURN_URL: 'http://localhost:5000/api/orders/vnpay/return', VNPAY_USD_TO_VND_RATE: '25000' });
-    assert.equal(paymentConfig().rate, 25000);
+    assert.equal(paymentConfig().tmnCode, 'TESTCODE');
   } finally { keys.forEach((k,i) => { if (original[i] === undefined) delete process.env[k]; else process.env[k] = original[i]; }); }
 });

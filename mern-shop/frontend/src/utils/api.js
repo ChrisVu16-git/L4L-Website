@@ -1,3 +1,4 @@
+import { userMessage } from './messages';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -20,15 +21,16 @@ export async function apiFetch(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  let res;
+  try { res = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers,
-  });
+  }); } catch { throw new Error('Không thể kết nối đến cửa hàng. Bạn vui lòng kiểm tra mạng và thử lại.'); }
 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const error = new Error(data.message || 'Something went wrong');
+    const error = new Error(userMessage(data.message, res.status));
     error.code = data.code;
     error.verificationPending = data.verificationPending === true;
     throw error;
@@ -38,7 +40,7 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 export const formatPrice = (price) =>
-  new Intl.NumberFormat('en-US', {
+  new Intl.NumberFormat('vi-VN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'VND', maximumFractionDigits: 0,
   }).format(price);

@@ -37,7 +37,7 @@ export default function ProductPage() {
         method: 'POST',
         body: JSON.stringify(review),
       });
-      setReviewMsg('Review submitted!');
+      setReviewMsg("Đã gửi đánh giá thành công!");
       const updated = await apiFetch(`/products/${id}`);
       setProduct(updated);
     } catch (err) {
@@ -56,11 +56,11 @@ export default function ProductPage() {
         <div className="product-detail-info">
           <span className="product-category">{product.category}</span>
           <h1>{product.name}</h1>
-          <Rating value={product.rating} text={`${product.numReviews} reviews`} />
+          <Rating value={product.rating} text={`${product.numReviews} đánh giá`} />
           <p className="product-detail-price">{formatPrice(product.price)}</p>
           <p className="product-detail-desc">{product.description}</p>
           <p className="stock-status">
-            Status: {product.countInStock > 0 ? `In Stock (${product.countInStock})` : 'Out of Stock'}
+            Tình trạng: {product.countInStock > 0 ? `Còn ${product.countInStock} sản phẩm` : "Hết hàng"}
           </p>
 
           {product.countInStock > 0 && (
@@ -73,7 +73,7 @@ export default function ProductPage() {
                 ))}
               </select>
               <button type="button" className="btn btn-primary" onClick={handleAddToCart}>
-                Add to Cart
+                Thêm vào giỏ hàng
               </button>
             </div>
           )}
@@ -81,23 +81,23 @@ export default function ProductPage() {
       </div>
 
       <section className="reviews-section">
-        <h2>Reviews</h2>
-        {product.reviews.length === 0 && <p>No reviews yet.</p>}
+        <h2>Đánh giá của khách hàng</h2>
+        {product.reviews.length === 0 && <p>Sản phẩm chưa có đánh giá.</p>}
         {product.reviews.map((r) => (
           <div key={r._id} className="review-card">
             <strong>{r.name}</strong>
             <Rating value={r.rating} />
             <p>{r.comment}</p>
-            <small>{new Date(r.createdAt).toLocaleDateString()}</small>
+            <small>{new Date(r.createdAt).toLocaleDateString('vi-VN')}</small>
           </div>
         ))}
 
         {user && (
           <form onSubmit={submitReview} className="review-form">
-            <h3>Write a Review</h3>
-            {reviewMsg && <Message variant={reviewMsg.includes('submitted') ? 'success' : 'error'}>{reviewMsg}</Message>}
+            <h3>Chia sẻ đánh giá của bạn</h3>
+            {reviewMsg && <Message variant={reviewMsg.includes('thành công') ? 'success' : 'error'}>{reviewMsg}</Message>}
             <label>
-              Rating
+              Đánh giá
               <select
                 value={review.rating}
                 onChange={(e) => setReview({ ...review, rating: Number(e.target.value) })}
@@ -105,13 +105,13 @@ export default function ProductPage() {
               >
                 {[5, 4, 3, 2, 1].map((n) => (
                   <option key={n} value={n}>
-                    {n} - {n === 5 ? 'Excellent' : n === 1 ? 'Poor' : 'Good'}
+                    {n} - {n === 5 ? "Rất tốt" : n === 1 ? "Chưa hài lòng" : "Tốt"}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              Comment
+              Nhận xét
               <textarea
                 required
                 rows={4}
@@ -121,7 +121,7 @@ export default function ProductPage() {
               />
             </label>
             <button type="submit" className="btn btn-primary">
-              Submit Review
+              Gửi đánh giá
             </button>
           </form>
         )}

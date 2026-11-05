@@ -34,7 +34,7 @@ test('GET /api/products/:id returns an existing product', async () => {
   let product;
 
   try {
-    product = await Product.create({
+    product = await Product.create({ currency: 'VND',
       name: productName,
       description: 'Created for the product GET API test',
       price: 25,
@@ -400,7 +400,7 @@ test('PUT /api/products/:id updates a product as an admin', async () => {
       isAdmin: true,
     });
 
-    product = await Product.create({
+    product = await Product.create({ currency: 'VND',
       name: 'Product Before Update',
       description: 'Original description',
       price: 100,
@@ -455,7 +455,7 @@ test('DELETE /api/products/:id deletes a product as an admin', async () => {
       isAdmin: true,
     });
 
-    product = await Product.create({
+    product = await Product.create({ currency: 'VND',
       name: 'Product To Delete',
       description: 'Temporary deletion test',
       price: 100,
@@ -502,7 +502,7 @@ test('PUT /api/products/:id rejects a regular user', async () => {
       isAdmin: false,
     });
 
-    product = await Product.create({
+    product = await Product.create({ currency: 'VND',
       name: 'Protected Product',
       description: 'Authorization test',
       price: 100,
@@ -542,7 +542,7 @@ test('DELETE /api/products/:id rejects a regular user', async () => {
       isAdmin: false,
     });
 
-    product = await Product.create({
+    product = await Product.create({ currency: 'VND',
       name: 'Protected Delete Product',
       description: 'Authorization test',
       price: 100,
@@ -660,7 +660,7 @@ test('R2 cleanup preserves an image that is still referenced by a product', asyn
   };
 
   try {
-    product = await Product.create({
+    product = await Product.create({ currency: 'VND',
       name: 'Shared R2 Image Test',
       description: 'Verifies referenced images are preserved',
       price: 10,
@@ -734,12 +734,12 @@ test('R2 cleanup preserves a shared image until its last product reference is re
       countInStock: 1,
     };
 
-    firstProduct = await Product.create({
+    firstProduct = await Product.create({ currency: 'VND',
       ...sharedFields,
       name: 'First Shared Image Product',
     });
 
-    secondProduct = await Product.create({
+    secondProduct = await Product.create({ currency: 'VND',
       ...sharedFields,
       name: 'Second Shared Image Product',
     });
@@ -795,7 +795,7 @@ test('R2 cleanup preserves a shared image until its last product reference is re
 //   };
 
 //   try {
-//     product = await Product.create({
+//     product = await Product.create({ currency: 'VND',
 //       name: 'Shared Cloudinary Image Test',
 //       description: 'Verifies referenced images are preserved',
 //       price: 10,
@@ -862,11 +862,11 @@ test('R2 cleanup preserves a shared image until its last product reference is re
 //       countInStock: 1,
 //     };
 
-//     firstProduct = await Product.create({
+//     firstProduct = await Product.create({ currency: 'VND',
 //       ...sharedFields,
 //       name: 'First Shared Image Product',
 //     });
-//     secondProduct = await Product.create({
+//     secondProduct = await Product.create({ currency: 'VND',
 //       ...sharedFields,
 //       name: 'Second Shared Image Product',
 //     });

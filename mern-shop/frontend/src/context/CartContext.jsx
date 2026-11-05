@@ -1,3 +1,4 @@
+import { toVnd } from '../utils/commerce-rules';
 import { createContext, useContext, useReducer, useEffect } from 'react';
 
 const CartContext = createContext();
@@ -31,7 +32,7 @@ const cartReducer = (state, action) => {
 export function CartProvider({ children }) {
   const [cartItems, dispatch] = useReducer(cartReducer, [], (init) => {
     const saved = localStorage.getItem('cartItems');
-    return saved ? JSON.parse(saved) : init;
+    try { return saved ? JSON.parse(saved).map(item => ({ ...item, price: toVnd(item.price, item.currency), currency: 'VND' })) : init; } catch { return init; }
   });
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function CartProvider({ children }) {
         name: product.name,
         image: product.image,
         price: product.price,
+        currency: 'VND',
         countInStock: product.countInStock,
         qty,
       },

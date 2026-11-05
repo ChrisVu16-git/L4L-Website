@@ -44,40 +44,40 @@ export default function HomePage() {
       <section className="hero figure-hero">
         <div className="container figure-hero-inner">
           <div>
-            <p className="eyebrow">L4LStore / The collector’s corner</p>
-            <h1>Small figures.<br />Big personalities.</h1>
-            <p>Find the next centrepiece for your shelf. Explore figures, collectibles, and characters worth making room for.</p>
-            <a className="btn btn-primary" href="#collection">Explore the collection ↗</a>
+            <p className="eyebrow">L4LStore / Góc của người sưu tầm</p>
+            <h1>Mô hình nhỏ.<br />Đam mê lớn.</h1>
+            <p>Tìm nhân vật yêu thích cho góc trưng bày của bạn. Khám phá các mẫu mô hình và món đồ sưu tầm đầy cá tính.</p>
+            <a className="btn btn-primary" href="#collection">Khám phá bộ sưu tập ↗</a>
           </div>
-          <div className="collector-display" aria-label="Figure collection display">
-            <span className="display-label">YOUR NEXT SHELF FAVOURITE</span>
+          <div className="collector-display" aria-label="Góc trưng bày mô hình">
+            <span className="display-label">NHÂN VẬT TIẾP THEO TRONG BỘ SƯU TẬP</span>
             {products[0]?.image ? <img src={products[0].image} alt={products[0].name} /> : <span className="display-monogram" aria-hidden="true">L4L</span>}
-            <span className="display-caption">A little character goes a long way.</span>
+            <span className="display-caption">Thêm cá tính cho góc trưng bày của bạn.</span>
           </div>
         </div>
       </section>
 
       <section className="container shop-section" id="collection" aria-labelledby="collection-title">
         <div className="collection-heading">
-          <div><p className="eyebrow">Find your favourites</p><h2 id="collection-title">The collection</h2></div>
-          <span>Figures & collectibles</span>
+          <div><p className="eyebrow">Tìm mẫu mô hình bạn yêu thích</p><h2 id="collection-title">Bộ sưu tập</h2></div>
+          <span>Mô hình và đồ sưu tầm</span>
         </div>
         <div className="filters">
           <input
             type="search"
-            aria-label="Search figures"
-            placeholder="Search characters, figures, and more..."
+            aria-label="Tìm kiếm mô hình"
+            placeholder="Tìm theo tên mô hình hoặc nhân vật…"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             className="input search-input"
           />
           <select
-            aria-label="Filter by category"
+            aria-label="Lọc theo danh mục"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="input select-input"
           >
-            <option value="">All Categories</option>
+            <option value="">Tất cả danh mục</option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
@@ -91,7 +91,7 @@ export default function HomePage() {
         ) : error ? (
           <Message variant="error">{error}</Message>
         ) : products.length === 0 ? (
-          <Message>No products found.</Message>
+          <Message>Chưa tìm thấy sản phẩm phù hợp.</Message>
         ) : (
           <div className="product-grid">
             {products.map((product) => (

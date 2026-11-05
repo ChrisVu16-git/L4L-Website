@@ -85,7 +85,8 @@ const products = [
   },
 ];
 
-await Product.insertMany(products);
+// These demo prices are legacy USD fixtures; the storefront converts them once.
+await Product.insertMany(products.map(product => ({ ...product, currency: 'USD' })));
 
 console.log('Database seeded!');
 console.log(`Admin: ${admin.email} / admin123`);

@@ -1,3 +1,5 @@
+import { productView } from '../utils/commerce.js';
+import { toVnd } from '../utils/commerce-rules.js';
 import Product from '../models/Product.js';
 // import { cleanupCloudinaryImageUnused } from '../utils/cloudinaryImage.js';
 import { cleanupR2ImageUnused } from '../utils/r2Image.js';
@@ -71,7 +73,7 @@ export const getProducts = async (req, res) => {
         ...keyword,
         ...category })
         .sort({ createdAt: -1 });
-  res.json(products);
+  res.json(products.map(productView));
 };
 
 
@@ -83,7 +85,7 @@ export const getProductById = async (req, res) => {
   }
   const product = await Product.findById(req.params.id);
   if (product) {
-    return res.json(product);
+    return res.json(productView(product));
   } else {
     return res.status(404).json({ message: 'Product not found' });
   }
@@ -143,7 +145,7 @@ export const createProduct = async (req, res) => {
   const parsedStock = Number(countInStock);
 
   if (
-    !Number.isFinite(parsedPrice) ||
+    !Number.isSafeInteger(parsedPrice) ||
     parsedPrice < 0 ||
     !Number.isInteger(parsedStock) ||
     parsedStock < 0
@@ -157,6 +159,7 @@ export const createProduct = async (req, res) => {
     name: name.trim(),
     description: description.trim(),
     price: parsedPrice,
+    currency: 'VND',
     category: category.trim(),
     image: image.trim(),
     imageKey: imageKey || null,
@@ -164,7 +167,7 @@ export const createProduct = async (req, res) => {
     countInStock: parsedStock,
   });
 
-  res.status(201).json(product);
+  res.status(201).json(productView(product));
 };
 
 
@@ -212,6 +215,12 @@ export const updateProduct = async (req, res) => {
     return res.status(404).json({
       message: 'Product not found',
     });
+  }
+
+  if (product.currency !== 'VND') {
+    product.legacyPriceUsd = product.price;
+    product.price = toVnd(product.price, product.currency);
+    product.currency = 'VND';
   }
 
   // const oldImagePublicId = product.imagePublicId;
@@ -262,7 +271,7 @@ export const updateProduct = async (req, res) => {
       (typeof product.category !== 'string' || !product.category.trim())) ||
     (product.image !== undefined &&
       !isValidImageUrl(product.image)) ||
-    !Number.isFinite(Number(product.price)) ||
+    !Number.isSafeInteger(Number(product.price)) ||
     Number(product.price) < 0 ||
     !Number.isInteger(Number(product.countInStock)) ||
     Number(product.countInStock) < 0
@@ -290,7 +299,7 @@ export const updateProduct = async (req, res) => {
   //     updatedProduct._id
   //   );
   // }
-  res.json(updatedProduct);
+  res.json(productView(updatedProduct));
 };
 
 

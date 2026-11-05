@@ -6,6 +6,7 @@ import {
   getMyOrders,
   getOrders,
   updateOrderToDelivered,
+  updateOrder,
   createCheckoutSession,
   markOrderPaid,
   vnpayIpn,
@@ -29,6 +30,7 @@ router.get('/', protect, admin, safe(getOrders));
 router.get('/:id', protect, safe(getOrderById));
 router.get('/:id/pay', protect, safe(markOrderPaid));
 router.post('/:id/checkout', protect, safe(createCheckoutSession));
+router.put('/:id', protect, admin, safe(updateOrder));
 router.put('/:id/deliver', protect, admin, safe(updateOrderToDelivered));
 
 export default router;

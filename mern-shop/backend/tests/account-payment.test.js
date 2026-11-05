@@ -58,15 +58,15 @@ test('old verification endpoints are disabled and send no email', async () => {
 
 test('VNPay checkout/return/IPN checks amounts and fulfills concurrent notifications exactly once', async () => {
   user = await User.findOne({ email });
-  product = await Product.create({ name: 'Sandbox figure', description: 'Test', price: 25, category: 'Testing', image: 'https://example.test/figure.jpg', countInStock: 5 });
+  product = await Product.create({ name: 'Sandbox figure', description: 'Test', price: 625000, currency: 'VND', category: 'Testing', image: 'https://example.test/figure.jpg', countInStock: 5 });
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
   assert.equal(user.emailVerified, false);
   const created = await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send({
     orderItems: [{ product: product._id, qty: 1 }],
-    shippingAddress: { address: 'Test', city: 'Test', postalCode: '10000', country: 'VN' },
+    shippingAddress: { recipientName: 'Nguyễn Văn An', phone: '0912345678', address: '12 Nguyễn Huệ', ward: 'Phường Sài Gòn', city: 'TP. Hồ Chí Minh', postalCode: '70000', country: 'Việt Nam' },
   });
   assert.equal(created.status, 201);
-  assert.equal(created.body.totalPrice, 37.5);
+  assert.equal(created.body.totalPrice, 937500);
   order = await Order.findById(created.body._id);
   const checkout = () => request(app).post(`/api/orders/${order._id}/checkout`).set('Authorization', `Bearer ${token}`).send({ amount: 1 });
   const quotes = await Promise.all([checkout(), checkout()]);

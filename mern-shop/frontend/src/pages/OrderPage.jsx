@@ -1,140 +1,62 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { statusLabels, orderStatus } from '../utils/commerce-rules';
 import { apiFetch, formatPrice } from '../utils/api';
 import Loader, { Message } from '../components/UI';
-
 export default function OrderPage() {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [paymentError, setPaymentError] = useState('');
-  const [paying, setPaying] = useState(false);
-  const [quote, setQuote] = useState(null);
-  const pay = async () => {
-    setPaymentError(''); setPaying(true);
-    try { const data = await apiFetch(`/orders/${id}/checkout`, { method: 'POST' }); setQuote(data); setPaying(false); }
-    catch (err) { setPaymentError(err.message); setPaying(false); }
-  };
-
-  const success = searchParams.get('payment') === 'pending';
-  const cancelled = searchParams.get('payment') === 'failed';
-
+  const [params] = useSearchParams();
+  const [order,setOrder] = useState(null), [loading,setLoading] = useState(true), [error,setError] = useState('');
+  const [quote,setQuote] = useState(null), [paying,setPaying] = useState(false), [paymentError,setPaymentError] = useState('');
+  const returned = params.get('payment') === 'pending', failed = params.get('payment') === 'failed';
   useEffect(() => {
-    const fetchOrder = async () => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true); setError(''); setQuote(null);
       try {
         let data = await apiFetch(`/orders/${id}`);
-
-        if (success && !data.isPaid) {
-          for (let i = 0; i < 5; i++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            const status = await apiFetch(`/orders/${id}/pay`);
-            if (status.isPaid) {
-              data = await apiFetch(`/orders/${id}`);
-              break;
-            }
-          }
+        if (returned && !data.isPaid) for (let i=0;i<5;i++) {
+          await new Promise(resolve => setTimeout(resolve,2000));
+          if (cancelled) return;
+          data = await apiFetch(`/orders/${id}`); if (data.isPaid) break;
         }
-
-        setOrder(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+        if (!cancelled) setOrder(data);
+      } catch (err) { if (!cancelled) setError(err.message); }
+      finally { if (!cancelled) setLoading(false); }
     };
-
-    fetchOrder();
-  }, [id, success]);
-
+    load(); return () => { cancelled = true; };
+  }, [id,returned]);
+  const pay = async () => {
+    setPaying(true); setPaymentError('');
+    try { setQuote(await apiFetch(`/orders/${id}/checkout`, { method:'POST' })); }
+    catch (err) { setPaymentError(err.message); } finally { setPaying(false); }
+  };
   if (loading) return <Loader />;
   if (error) return <Message variant="error">{error}</Message>;
   if (!order) return null;
-
-  return (
-    <div className="page container order-page">
-      <h1>Order {order._id.slice(-8).toUpperCase()}</h1>
-
-      {success && order.isPaid && (
-        <Message variant="success">Payment successful! Thank you for your order.</Message>
-      )}
-      {success && !order.isPaid && <Message>Waiting for payment confirmation. Refresh this page shortly.</Message>}
-      {cancelled && <Message variant="error">Payment was cancelled or unsuccessful. You can try again.</Message>}
-
-      <div className="order-grid">
-        <div className="card">
-          <h2>Shipping</h2>
-          <p>
-            <strong>{order.user.name}</strong>
-          </p>
-          <p>
-            {order.shippingAddress.address}, {order.shippingAddress.city}{' '}
-            {order.shippingAddress.postalCode}, {order.shippingAddress.country}
-          </p>
-          {order.isDelivered ? (
-            <Message variant="success">Delivered on {new Date(order.deliveredAt).toLocaleDateString()}</Message>
-          ) : (
-            <Message variant="info">Not delivered yet</Message>
-          )}
-        </div>
-
-        <div className="card">
-          <h2>Payment</h2>
-          <p>{order.isPaid ? `Payment recorded: ${order.paymentMethod}` : 'VNPay sandbox · test payments only'}</p>
-          {!order.isPaid && <>
-            <p>Review the VND sandbox amount before continuing to VNPay. Use only VNPay’s sandbox test bank details.</p>
-            {paymentError && <Message variant="error">{paymentError}</Message>}
-            <button className="btn btn-primary" onClick={pay} disabled={paying}>{paying ? 'Preparing amount…' : 'Review VNPay payment'}</button>
-          </>}
-          {quote && !order.isPaid && <div className="card" role="status">
-            <strong>VNPay sandbox total: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(quote.amountVnd)}</strong>
-            <p>Converted from {formatPrice(order.totalPrice)} at {quote.usdToVndRate.toLocaleString()} VND per USD.</p>
-            <p>Quote expires: {new Date(quote.expiresAt).toLocaleString()}</p>
-            <a className="btn btn-primary" href={quote.url}>Continue to VNPay sandbox</a>
-          </div>}
-          {order.isPaid ? (
-            <Message variant="success">Paid on {new Date(order.paidAt).toLocaleDateString()}</Message>
-          ) : (
-            <Message variant="error">Not paid</Message>
-          )}
-        </div>
-
-        <div className="card order-items-card">
-          <h2>Order Items</h2>
-          {order.orderItems.map((item) => (
-            <div key={item.product} className="order-item">
-              <img src={item.image} alt={item.name} />
-              <div>
-                <Link to={`/product/${item.product}`}>{item.name}</Link>
-                <p>
-                  {item.qty} x {formatPrice(item.price)} = {formatPrice(item.qty * item.price)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="card cart-summary">
-          <h2>Order Summary</h2>
-          <div className="summary-row">
-            <span>Items</span>
-            <span>{formatPrice(order.itemsPrice)}</span>
-          </div>
-          <div className="summary-row">
-            <span>Shipping</span>
-            <span>{formatPrice(order.shippingPrice)}</span>
-          </div>
-          <div className="summary-row">
-            <span>Tax</span>
-            <span>{formatPrice(order.taxPrice)}</span>
-          </div>
-          <div className="summary-row summary-total">
-            <span>Total</span>
-            <span>{formatPrice(order.totalPrice)}</span>
-          </div>
-        </div>
+  const status = orderStatus(order), shipping = order.shippingAddress;
+  const steps = ['placed','processing','shipping','delivered'];
+  return <div className="page container order-page">
+    <h1>Đơn hàng #{order._id.slice(-8).toUpperCase()}</h1>
+    <span className={`status-badge status-${status}`}>{statusLabels[status]}</span>
+    {status !== 'cancelled' && <ol className="order-timeline" aria-label="Tiến trình đơn hàng">{steps.map((step,index) => <li key={step} className={index <= steps.indexOf(status) ? 'active' : ''} aria-current={step === status ? 'step' : undefined}>{index+1}. {statusLabels[step]}</li>)}</ol>}
+    {returned && order.isPaid && <Message variant="success">Thanh toán thành công. Cảm ơn bạn đã đặt hàng!</Message>}
+    {returned && !order.isPaid && <Message>Đang chờ xác nhận thanh toán. Bạn vui lòng tải lại trang sau ít phút.</Message>}
+    {failed && <Message variant="error">Thanh toán chưa thành công hoặc đã bị hủy. Bạn có thể thử lại.</Message>}
+    <div className="order-grid">
+      <div className="card"><h2>Thông tin nhận hàng</h2><p><strong>{shipping.recipientName || order.user?.name || 'Chưa cập nhật'}</strong></p>
+        <p>{shipping.phone || 'Chưa cập nhật số điện thoại'}</p><p>{[shipping.address,shipping.ward,shipping.city,shipping.postalCode,shipping.country].filter(Boolean).join(', ')}</p>
+        {order.trackingNumber && <p>Mã vận đơn: <strong>{order.trackingNumber}</strong></p>}
+        {order.deliveredAt && <p>Ngày giao: {new Date(order.deliveredAt).toLocaleDateString('vi-VN')}</p>}
       </div>
+      <div className="card"><h2>Thanh toán</h2><p>{order.isPaid ? 'Đã thanh toán' : 'VNPay thử nghiệm — không dùng thẻ thật'}</p>
+        {!order.isPaid && status !== 'cancelled' && <><p>Kiểm tra tổng tiền trước khi chuyển đến VNPay.</p>{paymentError && <Message variant="error">{paymentError}</Message>}
+          <button className="btn btn-primary" disabled={paying} onClick={pay}>{paying ? 'Đang chuẩn bị…' : 'Thanh toán qua VNPay'}</button></>}
+        {quote && !order.isPaid && status !== 'cancelled' && <div role="status"><p><strong>Số tiền thanh toán: {formatPrice(quote.amountVnd)}</strong></p><p>Liên kết có hiệu lực đến {new Date(quote.expiresAt).toLocaleString('vi-VN')}</p><a className="btn btn-primary" href={quote.url}>Tiếp tục đến VNPay thử nghiệm</a></div>}
+        {order.isPaid && <Message variant="success">Thanh toán ngày {new Date(order.paidAt).toLocaleDateString('vi-VN')}</Message>}
+      </div>
+      <div className="card order-items-card"><h2>Sản phẩm đã đặt</h2>{order.orderItems.map(item => <div className="order-item" key={item.product}><img src={item.image} alt={item.name} /><div><Link to={`/product/${item.product}`}>{item.name}</Link><p>{item.qty} × {formatPrice(item.price)} = {formatPrice(item.qty*item.price)}</p></div></div>)}</div>
+      <div className="card cart-summary"><h2>Chi tiết thanh toán</h2>{[['Tiền sản phẩm',order.itemsPrice],['Phí giao hàng',order.shippingPrice],['Thuế (10%)',order.taxPrice],['Tổng thanh toán',order.totalPrice]].map(([label,value]) => <div className="summary-row" key={label}><span>{label}</span><strong>{formatPrice(value)}</strong></div>)}</div>
     </div>
-  );
+  </div>;
 }

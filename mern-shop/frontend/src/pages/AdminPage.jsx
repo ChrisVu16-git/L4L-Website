@@ -1,3 +1,4 @@
+import AdminOrders from '../components/AdminOrders';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch, formatPrice } from '../utils/api';
@@ -27,7 +28,7 @@ export default function AdminPage() {
       setProducts(prods);
       setOrders(ords);
     } catch (err) {
-      setError(err.message || 'Failed to load dashboard data');
+      setError(err.message || "Không tải được dữ liệu quản trị.");
     } finally {
       setLoading(false);
     }
@@ -67,12 +68,12 @@ export default function AdminPage() {
     ];
 
     if (!allowedTypes.includes(file.type)) {
-      setUploadError('Choose a JPG, PNG, WebP, or AVIF image.');
+      setUploadError("Vui lòng chọn ảnh JPG, PNG, WebP hoặc AVIF.");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image must be 5 MB or smaller.');
+      setUploadError("Vui lòng chọn ảnh không quá 5 MB.");
       return;
     }
 
@@ -101,7 +102,7 @@ export default function AdminPage() {
          });
 
         if (!uploadResponse.ok) {
-          throw new Error('Failed upload image to R2.');
+          throw new Error("Không thể tải ảnh lên. Vui lòng thử lại.");
         }
 
         // 3. Save the image information in the product form.
@@ -117,7 +118,7 @@ export default function AdminPage() {
             : current 
         );
     } catch (err) {
-      setUploadError(err.message || 'Image upload failed.');
+      setUploadError(err.message || "Không thể tải ảnh lên.");
     } finally {
       setUploading(false);
     }
@@ -151,7 +152,7 @@ export default function AdminPage() {
     event.preventDefault();
 
     if (uploading) {
-      alert('Please wait for the image upload to finish.');
+      alert("Vui lòng chờ tải ảnh xong.");
       return;
     }
 
@@ -170,27 +171,18 @@ export default function AdminPage() {
       setUploadError('');
       await loadData();
     } catch (err) {
-      alert(err.message || 'Failed to save product');
+      alert(err.message || "Không thể lưu sản phẩm.");
     }
   };
 
   const deleteProduct = async (id) => {
-    if (!window.confirm('Delete this product?')) return;
+    if (!window.confirm("Bạn muốn xóa sản phẩm này?")) return;
 
     try {
       await apiFetch(`/products/${id}`, { method: 'DELETE' });
       await loadData();
     } catch (err) {
-      alert(err.message || 'Failed to delete product');
-    }
-  };
-
-  const markDelivered = async (id) => {
-    try {
-      await apiFetch(`/orders/${id}/deliver`, { method: 'PUT' });
-      await loadData();
-    } catch (err) {
-      alert(err.message || 'Failed to update order');
+      alert(err.message || "Không thể xóa sản phẩm. Vui lòng thử lại.");
     }
   };
 
@@ -198,7 +190,7 @@ export default function AdminPage() {
 
   return (
     <div className="page container admin-page">
-      <h1>Admin Dashboard</h1>
+      <h1>Trang quản trị</h1>
 
       {error && <Message variant="error">{error}</Message>}
 
@@ -208,7 +200,7 @@ export default function AdminPage() {
           className={tab === 'products' ? 'tab active' : 'tab'}
           onClick={() => setTab('products')}
         >
-          Products
+          Sản phẩm
         </button>
 
         <button
@@ -216,7 +208,7 @@ export default function AdminPage() {
           className={tab === 'orders' ? 'tab active' : 'tab'}
           onClick={() => setTab('orders')}
         >
-          Orders
+          Đơn hàng
         </button>
       </div>
 
@@ -227,16 +219,16 @@ export default function AdminPage() {
             className="btn btn-primary"
             onClick={createProduct}
           >
-            + Create Product
+            + Thêm sản phẩm
           </button>
 
           {editing && (
             <form onSubmit={saveProduct} className="card admin-edit-form">
-              <h2>{editing._id ? 'Edit Product' : 'Create Product'}</h2>
+              <h2>{editing._id ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h2>
 
               {['name', 'description', 'category'].map((field) => (
                 <label key={field}>
-                  {field.charAt(0).toUpperCase() + field.slice(1)}
+                  {{ name: 'Tên sản phẩm', description: 'Mô tả', category: 'Danh mục' }[field]}
                   <input
                     className="input"
                     required
@@ -252,7 +244,7 @@ export default function AdminPage() {
               ))}
 
               <label>
-                Product Image
+                Ảnh sản phẩm
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -269,7 +261,7 @@ export default function AdminPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
               >
-                {uploading ? 'Uploading image...' : 'Upload Image to R2'}
+                {uploading ? "Đang tải ảnh…" : "Tải ảnh lên"}
               </button>
 
               {uploadError && (
@@ -280,10 +272,10 @@ export default function AdminPage() {
 
               {editing.image && (
                 <div className="image-preview">
-                  <p>Image preview</p>
+                  <p>Ảnh xem trước</p>
                   <img
                     src={editing.image}
-                    alt={editing.name || 'Product preview'}
+                    alt={editing.name || "Ảnh sản phẩm"}
                     style={{
                       display: 'block',
                       width: '180px',
@@ -294,7 +286,7 @@ export default function AdminPage() {
                   />
 
                   <label>
-                    Image URL
+                    Đường dẫn ảnh
                     <input
                       className="input"
                       type="url"
@@ -311,11 +303,11 @@ export default function AdminPage() {
               )}
 
               <label>
-                Price
+                Giá (VND)
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   required
                   className="input"
                   value={editing.price}
@@ -329,7 +321,7 @@ export default function AdminPage() {
               </label>
 
               <label>
-                Stock
+                Số lượng tồn
                 <input
                   type="number"
                   min="0"
@@ -352,7 +344,7 @@ export default function AdminPage() {
                   className="btn btn-primary"
                   disabled={uploading}
                 >
-                  {editing._id ? 'Save Changes' : 'Create Product'}
+                  {editing._id ? "Lưu thay đổi" : "Thêm sản phẩm"}
                 </button>
 
                 <button
@@ -363,7 +355,7 @@ export default function AdminPage() {
                     setUploadError('');
                   }}
                 >
-                  Cancel
+                  Hủy
                 </button>
               </div>
             </form>
@@ -373,11 +365,11 @@ export default function AdminPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Image</th>
-                  <th>Price</th>
-                  <th>Category</th>
-                  <th>Stock</th>
+                  <th>Tên sản phẩm</th>
+                  <th>Hình ảnh</th>
+                  <th>Giá (VND)</th>
+                  <th>Danh mục</th>
+                  <th>Số lượng tồn</th>
                   <th></th>
                 </tr>
               </thead>
@@ -419,7 +411,7 @@ export default function AdminPage() {
                           });
                         }}
                       >
-                        Edit
+                        Sửa
                       </button>
 
                       <button
@@ -427,7 +419,7 @@ export default function AdminPage() {
                         className="btn btn-ghost btn-sm"
                         onClick={() => deleteProduct(product._id)}
                       >
-                        Delete
+                        Xóa
                       </button>
                     </td>
                   </tr>
@@ -438,54 +430,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {tab === 'orders' && (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Date</th>
-                <th>Total</th>
-                <th>Paid</th>
-                <th>Delivered</th>
-                <th></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order._id}>
-                  <td>{order._id.slice(-8).toUpperCase()}</td>
-                  <td>{order.user?.name}</td>
-                  <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                  <td>{formatPrice(order.totalPrice)}</td>
-                  <td>{order.isPaid ? '✓' : '✗'}</td>
-                  <td>{order.isDelivered ? '✓' : '✗'}</td>
-                  <td>
-                    <Link
-                      to={`/order/${order._id}`}
-                      className="btn btn-ghost btn-sm"
-                    >
-                      View
-                    </Link>
-
-                    {!order.isDelivered && order.isPaid && (
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => markDelivered(order._id)}
-                      >
-                        Mark Delivered
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {tab === 'orders' && <AdminOrders orders={orders} onSaved={loadData} />}
     </div>
   );
 }

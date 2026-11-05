@@ -1,6 +1,6 @@
 export default function Loader() {
   return (
-    <div className="loader-wrap">
+    <div className="loader-wrap" role="status" aria-label="Đang tải dữ liệu">
       <div className="loader" />
     </div>
   );
