@@ -37,6 +37,8 @@ export default function LoginPage() {
             Email
             <input
               type="email"
+              autoComplete="email"
+              maxLength={254}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -48,6 +50,8 @@ export default function LoginPage() {
             Password
             <input
               type="password"
+              autoComplete="current-password"
+              maxLength={72}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -63,10 +67,7 @@ export default function LoginPage() {
         <p className="auth-switch">
           New customer? <Link to="/register">Create an account</Link>
         </p>
-        <p className="demo-credentials">
-          Demo: demo@mernshop.com / demo123<br />
-          Admin: admin@mernshop.com / admin123
-        </p>
+
       </div>
     </div>
   );
