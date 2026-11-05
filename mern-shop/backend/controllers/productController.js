@@ -155,6 +155,8 @@ export const createProduct = async (req, res) => {
     });
   }
 
+  if (req.body.currency !== 'VND' || req.get('X-L4L-Client-Currency') !== 'VND') return res.status(409).json({ message: 'Cửa hàng vừa chuyển sang VND. Vui lòng tải lại trang trước khi cập nhật giá.' });
+
   const product = await Product.create({
     name: name.trim(),
     description: description.trim(),
@@ -280,6 +282,8 @@ export const updateProduct = async (req, res) => {
       message: 'Invalid product fields',
     });
   }
+
+  if (req.body.price !== undefined && (req.body.currency !== 'VND' || req.get('X-L4L-Client-Currency') !== 'VND')) return res.status(409).json({ message: 'Cửa hàng vừa chuyển sang VND. Vui lòng tải lại trang trước khi cập nhật giá.' });
 
   product.price = Number(product.price);
   product.countInStock = Number(product.countInStock);

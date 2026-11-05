@@ -292,7 +292,11 @@ without rewriting historical database amounts. Editing a legacy product converts
 to VND once and retains its old price in `legacyPriceUsd`; editing an order's shipping
 or status does not rewrite its historical prices. Existing browser carts are converted
 once on load and stored with a VND currency marker. Do not manually relabel old USD
-records as VND without converting their amounts. This compatibility rule is not a
+records as VND without converting their amounts. During rolling deployments, read
+responses without a currency marker are normalized by the frontend. Commerce writes
+wait for a backend health response advertising `X-L4L-Currency: VND`. Product price
+writes must explicitly include `currency: VND` and `X-L4L-Client-Currency: VND`, so old USD forms cannot overwrite
+new VND prices. This compatibility rule is not a
 current market exchange rate.
 
 Shipping and demo tax preserve the previous configuration after conversion: shipping
