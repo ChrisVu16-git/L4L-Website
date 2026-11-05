@@ -31,3 +31,9 @@ export const admin = (req, res, next) => {
     res.status(403).json({ message: 'Admin access required' });
   }
 };
+
+// Invalid bearer tokens remain errors; only requests with no token are guests.
+export const optionalAuth = (req, res, next) => {
+  if (req.headers.authorization) return protect(req, res, next);
+  next();
+};

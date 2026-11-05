@@ -13,11 +13,16 @@ export function totals(itemsPrice) {
 }
 export const statusLabels = { placed: 'Đã đặt hàng', processing: 'Đang xử lý', shipping: 'Đang giao hàng', delivered: 'Đã giao hàng', cancelled: 'Đã hủy' };
 export const orderStatus = order => order.status || (order.isDelivered ? 'delivered' : 'placed');
+export function normalizePhone(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/[\s.()-]/g, '').replace(/^(?:\+84|0084|84)(?=[35789]\d{8}$)/, '0');
+}
+export const validAccountPhone = value => /^0[35789]\d{8}$/.test(normalizePhone(value));
 const clean = value => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
 export function validateShipping(input) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const value = Object.fromEntries(['recipientName','phone','address','ward','city','postalCode','country'].map(key => [key, clean(source[key])]));
-  value.phone = value.phone.replace(/[\s.()-]/g, '').replace(/^\+84/, '0');
+  value.phone = normalizePhone(value.phone);
   if (/^(vn|việt nam|viet nam|vietnam)$/i.test(value.country)) value.country = 'Việt Nam';
   const errors = {};
   for (const [field,min,max,label] of [['recipientName',2,100,'họ tên người nhận'],['address',8,200,'số nhà và tên đường'],['ward',2,100,'phường/xã'],['city',2,100,'tỉnh/thành phố'],['country',2,80,'quốc gia']]) {

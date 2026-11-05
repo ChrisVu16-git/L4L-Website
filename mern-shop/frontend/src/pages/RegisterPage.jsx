@@ -1,3 +1,4 @@
+import { normalizePhone, validAccountPhone } from '../utils/commerce-rules';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -6,6 +7,7 @@ import { Message } from '../components/UI';
 export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,6 +18,7 @@ export default function RegisterPage() {
 
   const submitHandler = async (e) => {
     e.preventDefault();
+    if (!validAccountPhone(phone)) { setError('Vui lòng nhập số điện thoại di động hợp lệ.'); return; }
     if (password !== confirmPassword) {
       setError("Mật khẩu nhập lại chưa khớp.");
       return;
@@ -23,7 +26,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await register(name, email.trim(), password);
+      await register(name, email.trim(), password, normalizePhone(phone));
       navigate('/');
     } catch (err) {
       setError(err.message);
@@ -66,6 +69,10 @@ export default function RegisterPage() {
             />
           </label>
           <datalist id="email-suggestions">{gmailSuggestion && <option value={gmailSuggestion} />}</datalist>
+          <label>
+            Số điện thoại
+            <input className="input" type="tel" autoComplete="tel" placeholder="0912345678" required maxLength={20} value={phone} onChange={event => setPhone(event.target.value)} />
+          </label>
           <label>
             Mật khẩu
             <input

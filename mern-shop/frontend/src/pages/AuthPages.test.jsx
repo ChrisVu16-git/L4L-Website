@@ -12,6 +12,7 @@ const show = (Page, path = '/register') => render(<MemoryRouter initialEntries={
 function fillSignup() {
   fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Collector' } });
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'collector@gmail.com' } });
+  fireEvent.change(screen.getByLabelText('Số điện thoại'), { target: { value: '0912345678' } });
   fireEvent.change(screen.getByLabelText('Mật khẩu'), { target: { value: 'TestPassword123!' } });
   fireEvent.change(screen.getByLabelText('Nhập lại mật khẩu'), { target: { value: 'TestPassword123!' } });
   fireEvent.click(screen.getByRole('button', { name: 'Đăng ký' }));
@@ -26,7 +27,7 @@ test('signup continues directly to the shop', async () => {
   register.mockResolvedValue({ token: 'test-token', emailVerified: false });
   show(RegisterPage); fillSignup();
   expect(await screen.findByText('Shop home')).toBeTruthy();
-  expect(register).toHaveBeenCalledWith('Collector', 'collector@gmail.com', 'TestPassword123!');
+  expect(register).toHaveBeenCalledWith('Collector', 'collector@gmail.com', 'TestPassword123!', '0912345678');
 });
 test('duplicate signup shows the sign-in error without a resend button', async () => {
   register.mockRejectedValue(new Error('Account already exists. Please sign in.'));

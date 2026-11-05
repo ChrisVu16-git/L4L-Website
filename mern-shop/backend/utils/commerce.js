@@ -5,6 +5,7 @@ export function productView(product) {
 }
 export function orderView(order, admin = false) {
   const value = order.toObject ? order.toObject() : { ...order };
+  delete value.guestTokenHash;
   const currency = value.currency;
   for (const field of ['itemsPrice','shippingPrice','taxPrice','totalPrice']) value[field] = toVnd(value[field], currency);
   value.orderItems = value.orderItems.map(item => ({ ...item, price: toVnd(item.price, currency) }));

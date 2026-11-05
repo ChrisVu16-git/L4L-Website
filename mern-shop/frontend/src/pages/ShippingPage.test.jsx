@@ -1,7 +1,8 @@
-import { afterEach, test, expect } from 'vitest';
+import { afterEach, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ShippingPage from './ShippingPage';
+vi.mock('../context/AuthContext', () => ({useAuth:()=>({user:null})}));
 afterEach(() => { cleanup(); localStorage.clear(); });
 const show = () => render(<MemoryRouter initialEntries={['/shipping']}><Routes><Route path="/shipping" element={<ShippingPage />} /><Route path="/payment" element={<p>Trang thanh toán</p>} /></Routes></MemoryRouter>);
 test('invalid shipping stays on the form and does not save an address', () => {

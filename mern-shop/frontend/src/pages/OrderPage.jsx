@@ -1,3 +1,4 @@
+import { guestTokenFor, saveGuestAccess } from '../utils/guestOrders';
 import { useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { statusLabels, orderStatus } from '../utils/commerce-rules';
@@ -7,12 +8,13 @@ export default function OrderPage() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const [order,setOrder] = useState(null), [loading,setLoading] = useState(true), [error,setError] = useState('');
+  const [accessVersion,setAccessVersion] = useState(0), [lookupCode,setLookupCode] = useState(''), [errorCode,setErrorCode] = useState('');
   const [quote,setQuote] = useState(null), [paying,setPaying] = useState(false), [paymentError,setPaymentError] = useState('');
   const returned = params.get('payment') === 'pending', failed = params.get('payment') === 'failed';
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      setLoading(true); setError(''); setQuote(null);
+      setLoading(true); setError(''); setErrorCode(''); setQuote(null);
       try {
         let data = await apiFetch(`/orders/${id}`);
         if (returned && !data.isPaid) for (let i=0;i<5;i++) {
@@ -21,23 +23,31 @@ export default function OrderPage() {
           data = await apiFetch(`/orders/${id}`); if (data.isPaid) break;
         }
         if (!cancelled) setOrder(data);
-      } catch (err) { if (!cancelled) setError(err.message); }
+      } catch (err) { if (!cancelled) { setError(err.message); setErrorCode(err.code || ''); } }
       finally { if (!cancelled) setLoading(false); }
     };
     load(); return () => { cancelled = true; };
-  }, [id,returned]);
+  }, [id,returned,accessVersion]);
   const pay = async () => {
     setPaying(true); setPaymentError('');
     try { setQuote(await apiFetch(`/orders/${id}/checkout`, { method:'POST' })); }
     catch (err) { setPaymentError(err.message); } finally { setPaying(false); }
   };
   if (loading) return <Loader />;
-  if (error) return <Message variant="error">{error}</Message>;
+  if (error) return <div className="page container auth-page"><div className="card auth-card"><Message variant="error">{error}</Message>
+    {errorCode === 'ORDER_ACCESS_REQUIRED' && <form onSubmit={event => { event.preventDefault(); try { saveGuestAccess(id,lookupCode.trim());setAccessVersion(value=>value+1); } catch(err){setError(err.message);} }}>
+      <label>Mã tra cứu đơn khách<input className="input" type="password" required maxLength={64} value={lookupCode} onChange={event=>setLookupCode(event.target.value)} autoComplete="off" /></label>
+      <button className="btn btn-primary">Xem đơn hàng</button>
+    </form>}<p><Link to="/login">Đăng nhập</Link> nếu đây là đơn hàng của tài khoản.</p>
+  </div></div>;
   if (!order) return null;
   const status = orderStatus(order), shipping = order.shippingAddress;
   const steps = ['placed','processing','shipping','delivered'];
   return <div className="page container order-page">
     <h1>Đơn hàng #{order._id.slice(-8).toUpperCase()}</h1>
+    {order.isGuest && <div className="card"><p>Đơn hàng khách vãng lai — không cần tài khoản.</p>
+      {guestTokenFor(id) && <details><summary>Lưu mã tra cứu đơn hàng</summary><p>Giữ đường dẫn trang này và mã dưới đây để xem đơn ở thiết bị khác. Không chia sẻ mã công khai.</p><input className="input" aria-label="Mã tra cứu bí mật" readOnly value={guestTokenFor(id)} onFocus={event=>event.currentTarget.select()} /></details>}
+    </div>}
     <span className={`status-badge status-${status}`}>{statusLabels[status]}</span>
     {status !== 'cancelled' && <ol className="order-timeline" aria-label="Tiến trình đơn hàng">{steps.map((step,index) => <li key={step} className={index <= steps.indexOf(status) ? 'active' : ''} aria-current={step === status ? 'step' : undefined}>{index+1}. {statusLabels[step]}</li>)}</ol>}
     {returned && order.isPaid && <Message variant="success">Thanh toán thành công. Cảm ơn bạn đã đặt hàng!</Message>}

@@ -25,13 +25,19 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const register = async (name, email, password) => {
+  const register = async (name, email, password, phone) => {
     const data = await apiFetch('/users/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, phone }),
     });
     setUser(data);
     localStorage.setItem('userInfo', JSON.stringify(data));
+    return data;
+  };
+
+  const updateProfile = async (name, phone) => {
+    const data = await apiFetch('/users/profile', { method: 'PUT', body: JSON.stringify({ name, phone }) });
+    setUser(current => { const updated = { ...current, ...data }; localStorage.setItem('userInfo', JSON.stringify(updated)); return updated; });
     return data;
   };
 
@@ -41,7 +47,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );
